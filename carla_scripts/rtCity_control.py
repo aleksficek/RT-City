@@ -227,54 +227,46 @@ class World(object):
                 sys.exit(1)
             spawn_points = self.map.get_spawn_points()
             spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
+            spawn_point = carla.Transform(carla.Location(x = 391.4, y=-52.6), carla.Rotation(pitch=0.000000, yaw=-89, roll=0.000000))
             # Check Camera Config
-            spawn_point = carla.Transform(carla.Location(x=10.8, y=-176.4, z=5), carla.Rotation(pitch=0.000000, yaw=-89, roll=0.000000))
+            # spawn_point = carla.Transform(carla.Location(x=10.8, y=-176.4, z=5), carla.Rotation(pitch=0.000000, yaw=-89, roll=0.000000))
             # Check Merging
             # spawn_point = carla.Transform(carla.Location(x=13.4, y=-159.2, z=5), carla.Rotation(pitch=0.000000, yaw=-89, roll=0.000000))
             self.player = self.world.try_spawn_actor(blueprint, spawn_point)
 
         # CAMERA ATTRIBUTES
 
-        # Define Camera Transforms:
-        transform_camera_front_right = carla.Transform(carla.Location(x=0.875, y=1, z=2), carla.Rotation(yaw=70, pitch=-10))
-        transform_camera_front_center = carla.Transform(carla.Location(x=1.8, y=0, z=2), carla.Rotation(yaw=0, pitch=-10))
-        transform_camera_front_left = carla.Transform(carla.Location(x=0.875,y=-1, z=2), carla.Rotation(yaw=-70, pitch=-10))
-        transform_camera_rear = carla.Transform(carla.Location(x=-1.9,y=-0.7, z=1.8), carla.Rotation(yaw=180, pitch=-10))
-        # transform_camera_front_right = carla.Transform(carla.Location(x=0.875, y=1, z=2), carla.Rotation(yaw=51.2, pitch=-20))
-        # transform_camera_front_center = carla.Transform(carla.Location(x=1.8, y=0, z=2), carla.Rotation(yaw=0))
-        # transform_camera_front_left = carla.Transform(carla.Location(x=0.875,y=-1, z=2), carla.Rotation(yaw=-51.2, pitch=-20))
-        
+        # Define Camera/lidar Transforms:
+        transform_camera_front_right = carla.Transform(carla.Location(x=391.4, y=1, z=9), carla.Rotation(yaw=43.5, pitch=67))
+        transform_camera_front_center = carla.Transform(carla.Location(x=391.4, y=-52.6, z=2), carla.Rotation(yaw=-43.5, pitch=67))
+        transform_lidar1 = carla.Transform(carla.Location(x=391.4, y=-52.6, z=2), carla.Rotation(yaw=0, pitch=53))
+
         # Front Center Cam Attributes
         camera_front_right = self.world.get_blueprint_library().find('sensor.camera.rgb')
-        camera_front_right.set_attribute('image_size_x', '960')
-        camera_front_right.set_attribute('image_size_y', '540')
-        camera_front_right.set_attribute('fov', '102.4')
+        camera_front_right.set_attribute('image_size_x', '1920')
+        camera_front_right.set_attribute('image_size_y', '1200')
+        camera_front_right.set_attribute('fov', '90')
         camera_front_right.set_attribute('sensor_tick', '0.1')
         camera_front_right.set_attribute('role_name', 'hero_camera_front_right')
 
         # Front Left Cam Attributes
         camera_front_left = self.world.get_blueprint_library().find('sensor.camera.rgb')
-        camera_front_left.set_attribute('image_size_x', '960')
-        camera_front_left.set_attribute('image_size_y', '540')
-        camera_front_left.set_attribute('fov', '102.4')
+        camera_front_left.set_attribute('image_size_x', '1920')
+        camera_front_left.set_attribute('image_size_y', '1200')
+        camera_front_left.set_attribute('fov', '90')
         camera_front_left.set_attribute('sensor_tick', '0.1')
         camera_front_left.set_attribute('role_name', 'hero_camera_front_left')
 
-        # Front Center Cam Attributes
-        camera_front_center = self.world.get_blueprint_library().find('sensor.camera.rgb')
-        camera_front_center.set_attribute('image_size_x', '960')
-        camera_front_center.set_attribute('image_size_y', '540')
-        camera_front_center.set_attribute('fov', '77.6')
-        camera_front_center.set_attribute('sensor_tick', '0.1')
-        camera_front_center.set_attribute('role_name', 'hero_camera_front_center')
-
-        # Rear Cam Attributes
-        camera_rear = self.world.get_blueprint_library().find('sensor.camera.rgb')
-        camera_rear.set_attribute('image_size_x', '960')
-        camera_rear.set_attribute('image_size_y', '540')
-        camera_rear.set_attribute('fov', '120')
-        camera_rear.set_attribute('sensor_tick', '0.1')
-        camera_rear.set_attribute('role_name', 'hero_camera_rear')
+        # Lidar Attributes
+        lidar = self.world.get_blueprint_library().find('sensor.lidar.ray_cast')
+        lidar.set_attribute('channels', '32')
+        lidar.set_attribute('range', '100')
+        lidar.set_attribute('points_per_second', '100000')
+        lidar.set_attribute('upper_fov', '15')
+        lidar.set_attribute('lower_fov', '-16')
+        lidar.set_attribute('horizontal_fov', '360')
+        lidar.set_attribute('horizontal_fov', '360')
+        lidar.set_attribute('role_name', 'lidar')
 
         for actor in self.world.get_actors():
             if actor.attributes.get('role_name') == 'lidar_top':
@@ -296,10 +288,9 @@ class World(object):
                 actor.destroy()
                 print('clean cam re')
 
-        camera1 = self.world.spawn_actor(camera_front_right, transform_camera_front_right, attach_to=self.player)
-        camera2 = self.world.spawn_actor(camera_front_left, transform_camera_front_left, attach_to=self.player)
-        camera3 = self.world.spawn_actor(camera_front_center, transform_camera_front_center, attach_to=self.player)
-        camera4 = self.world.spawn_actor(camera_rear, transform_camera_rear, attach_to=self.player)
+        camera1 = self.world.spawn_actor(camera_front_right, transform_camera_front_right)
+        camera2 = self.world.spawn_actor(camera_front_left, transform_camera_front_left)
+        lidar1 = self.world.spawn_actor(lidar, transform_lidar1)
 
         # Set up the sensors.
         self.collision_sensor = CollisionSensor(self.player, self.hud)
