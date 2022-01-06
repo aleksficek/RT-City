@@ -1,0 +1,14 @@
+Instructions to launch 2D Perception:
+
+# Terminal 1
+roscore
+
+# Terminal 2
+cd [Folder with your bag file or ensure camera rostopic is publishing]
+
+rosbag play [name of bagfile]
+
+# Terminal 3
+cd /home/c66tang/catkin_ws/src/perception/src/darknet-master
+
+LD_LIBRARY_PATH=./:$LD_LIBRARY_PATH ./uselib_center data/coco.names cfg/yolov4.cfg yolov4.weights basler_camera --i 0
