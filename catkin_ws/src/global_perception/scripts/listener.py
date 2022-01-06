@@ -52,6 +52,15 @@ def listener():
     rospy.init_node('listener', anonymous=True)
 
     rospy.Subscriber('chatter', String, callback)
+    pub = rospy.Publisher('noise', String, queue_size=10)
+
+    while not rospy.is_shutdown():
+        rospy.loginfo("check check")
+        pub.publish("check check")
+
+    rate = rospy.Rate(10)
+    # rate.sleep()
+
 
     # spin() simply keeps python from exiting until this node is stopped
     rospy.spin()
