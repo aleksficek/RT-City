@@ -1,0 +1,3 @@
+[submodule "catkin_ws/src/rslidar_sdk"]
+	path = catkin_ws/src/rslidar_sdk
+	url = https://github.com/RoboSense-LiDAR/rslidar_sdk
