@@ -1,0 +1,19 @@
+
+ #include <ros/ros.h>
+
+ // Main function
+ int main(int argc, char** argv)
+ {
+   // Initialize the ROS Node "roscpp_example"
+   ros::init(argc, argv, "roscpp_node");
+
+   // Instantiate the ROS Node Handler as nh
+   ros::NodeHandle nh;
+
+   // Print "Hello ROS!" to the terminal and ROS log file
+   ROS_INFO_STREAM("This works " << ros::this_node::getName());
+
+   // Program succesful
+   return 0;
+ }
+
