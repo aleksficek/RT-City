@@ -15,9 +15,9 @@ class GlobalBBox():
 		pass
 
 
-class GlobalBBoxBuffer():
-    def __init__(self):
-        self.unfilteredBuffer = list()
+# class GlobalBBoxBuffer():
+#     def __init__(self):
+#         self.unfilteredBuffer = list()
 
-    def addNewBBox(self):
-    	pass
+#     def addNewBBox(self):
+#     	pass

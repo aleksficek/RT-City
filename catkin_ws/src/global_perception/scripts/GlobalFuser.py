@@ -14,9 +14,10 @@ class GlobalFuser():
         self.rate = rospy.Rate(NODE_RATE)
         self.sub = rospy.Subscriber('chatter', String, self.nodeCallback)
         self.pub = rospy.Publisher('global_fused_bboxes', String, queue_size=10)
-        self.rawBuffer = GlobalBBoxBuffer() # class for recieved bbox maybe we need a double buffer?
+        # self.rawBuffer = GlobalBBoxBuffer() # class for recieved bbox maybe we need a double buffer?
+        self.rawBuffer = []
+        self.parsedBuffer = []
         self.predictions = BBoxPredictor() # class for holding predictions for ID'd bbox
-
         # Run the fuser at 20Hz
         while not rospy.is_shutdown():
             self.fuserRun50ms()
@@ -24,10 +25,14 @@ class GlobalFuser():
 
     def fuserRun50ms(self, event=None):
         # process bboxes for this time step
+        # read from rawBuffer, convert to BBox class and add to parsedbuffer
+        # reset rawBuffer
         self.pub.publish("Hello")
 
     def nodeCallback(self, data):
         # create new bbox to put in global buffer
+        
+        # read from subscribers any new data and add to rawBuffer
         pass
         
 
