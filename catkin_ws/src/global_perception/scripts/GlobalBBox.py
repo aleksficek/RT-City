@@ -3,7 +3,6 @@
 import rospy
 from jsk_recognition_msgs.msg import BoundingBoxArray, BoundingBox
 
-
 class GlobalBBox():
 	def __init__(self):
 		# self.nodeNum
@@ -13,7 +12,6 @@ class GlobalBBox():
 
 	def updateID(self):
 		pass
-
 
 # class GlobalBBoxBuffer():
 #     def __init__(self):
