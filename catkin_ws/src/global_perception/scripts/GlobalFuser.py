@@ -4,6 +4,10 @@ import rospy
 from std_msgs.msg import String
 from jsk_recognition_msgs.msg import BoundingBoxArray, BoundingBox
 import message_filters as mf
+# from GlobalBBox import GlobalBBoxBuffer
+from global_perception.msg import GlobalBBoxBuffer
+
+from global_perception.msg import ChildGlobalBBoxBuffer
 from BBoxPredictor import BBoxPredictor
 
 NODE_RATE = 20 # Hz
@@ -18,9 +22,9 @@ class GlobalFuser():
         self.sub_n3 = mf.Subscriber('node3/bounding_boxes', BoundingBoxArray)
         self.time_synch = mf.TimeSynchronizer([self.sub_n1, self.sub_n2, self.sub_n3], 10)
         self.time_synch.registerCallback(self.nodeCallback)
-        self.raw_buffer = []
+        self.buffer = GlobalBBoxBuffer()
 
-        self.pub = rospy.Publisher('global_fused_bboxes', list, queue_size=10)
+        self.pub = rospy.Publisher('global_fused_bboxes', GlobalBBoxBuffer, queue_size=10)
         self.predictions = BBoxPredictor() # class for holding predictions for ID'd bbox
         
         # Run the fuser at 20Hz
@@ -30,11 +34,14 @@ class GlobalFuser():
 
     def fuserRun50ms(self, event=None):
         # process bboxes for this time step
-        self.pub.publish(self.raw_buffer)
+        self.pub.publish(self.buffer)
+        self.buffer = GlobalBBoxBuffer()
 
     def nodeCallback(self, data_n1, data_n2, data_n3):
         # create new bbox to put in global buffer
-        self.raw_buffer.append([data_n1, data_n2, data_n3])
+        t1 = ChildGlobalBBoxBuffer()
+        t1.child_buffer_boxes.append(data_n1)
+        self.buffer.buffer_boxes.append([t1, t1, t1])
         # self.fuserRun50ms(data_n1, data_n2, data_n3)
         
 
