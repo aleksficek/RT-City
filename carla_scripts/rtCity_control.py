@@ -131,6 +131,15 @@ try:
 except ImportError:
     raise RuntimeError('cannot import numpy, make sure numpy package is installed')
 
+try:
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + '/carla')
+except IndexError:
+    pass
+
+# To import a basic agent
+from agents.navigation.basic_agent import BasicAgent
+from agents.navigation.roaming_agent import RoamingAgent
+
 
 # ==============================================================================
 # -- Global functions ----------------------------------------------------------
@@ -168,6 +177,8 @@ class World(object):
         self.hud = hud
         self.player = None
         self.car1 = None
+        self.car2 = None
+        self.car3 = None
         self.collision_sensor = None
         self.lane_invasion_sensor = None
         self.gnss_sensor = None
@@ -191,9 +202,25 @@ class World(object):
         cam_pos_index = self.camera_manager.transform_index if self.camera_manager is not None else 0
         
         # Spawn other cars
-        car1_bp = random.choice(self.world.get_blueprint_library().filter('vehicle.volkswagen*'))
-        car1_tf = carla.Transform(carla.Location(x=13.4, y=-154.2, z=5), carla.Rotation(pitch=0.000000, yaw=-89, roll=0.000000))
-        self.car1 = self.world.try_spawn_actor(car1_bp, car1_tf)
+        # car1_bp = random.choice(self.world.get_blueprint_library().filter('vehicle.audi*'))
+        # car1_tf = carla.Transform(carla.Location(x=556.5, y=-20.4, z=5), carla.Rotation(pitch=0.000000, yaw=-112, roll=0.000000))
+        # self.car1 = self.world.try_spawn_actor(car1_bp, car1_tf)
+        
+        # Spawn other cars
+        if self.car2 is not None:
+            self.car2.destroy()
+        if self.car3 is not None:
+            self.car3.destroy()
+        car2_bp = random.choice(self.world.get_blueprint_library().filter('vehicle.audi*'))
+        car2_tf = carla.Transform(carla.Location(x=375.2, y=-87.2, z=5), carla.Rotation(pitch=0.000000, yaw=-112, roll=0.000000))
+        self.car2 = self.world.try_spawn_actor(car2_bp, car2_tf)
+        self.car2.set_autopilot(True)
+
+        # Spawn other cars
+        car3_bp = random.choice(self.world.get_blueprint_library().filter('vehicle.*'))
+        car3_tf = carla.Transform(carla.Location(x=385.2, y=-67.2, z=5), carla.Rotation(pitch=0.000000, yaw=-112, roll=0.000000))
+        self.car3 = self.world.try_spawn_actor(car3_bp, car3_tf)
+        self.car3.set_autopilot(True)
 
         # Get a random blueprint.
         blueprint = random.choice(self.world.get_blueprint_library().filter('vehicle.volkswagen*'))
@@ -227,74 +254,99 @@ class World(object):
                 sys.exit(1)
             spawn_points = self.map.get_spawn_points()
             spawn_point = random.choice(spawn_points) if spawn_points else carla.Transform()
-            spawn_point = carla.Transform(carla.Location(x = 391.4, y=-52.6), carla.Rotation(pitch=0.000000, yaw=-89, roll=0.000000))
-            # Check Camera Config
-            # spawn_point = carla.Transform(carla.Location(x=10.8, y=-176.4, z=5), carla.Rotation(pitch=0.000000, yaw=-89, roll=0.000000))
-            # Check Merging
-            # spawn_point = carla.Transform(carla.Location(x=13.4, y=-159.2, z=5), carla.Rotation(pitch=0.000000, yaw=-89, roll=0.000000))
+            spawn_point = carla.Transform(carla.Location(x = 391.4, y=-52.6, z=5), carla.Rotation(pitch=0.000000, yaw=-112, roll=0.000000))
             self.player = self.world.try_spawn_actor(blueprint, spawn_point)
 
         # CAMERA ATTRIBUTES
 
         # Define Camera/lidar Transforms:
-        transform_camera_front_right = carla.Transform(carla.Location(x=391.4, y=1, z=9), carla.Rotation(yaw=43.5, pitch=67))
-        transform_camera_front_center = carla.Transform(carla.Location(x=391.4, y=-52.6, z=2), carla.Rotation(yaw=-43.5, pitch=67))
-        transform_lidar1 = carla.Transform(carla.Location(x=391.4, y=-52.6, z=2), carla.Rotation(yaw=0, pitch=53))
+        transform_camera_node1_left = carla.Transform(carla.Location(x=387, y=-72.1, z=9), carla.Rotation(yaw=-247, pitch=-34.5))
+        transform_camera_node1_right = carla.Transform(carla.Location(x=387, y=-72.1, z=9), carla.Rotation(yaw=-157, pitch=-34.5))
+        transform_lidar_node1 = carla.Transform(carla.Location(x=387, y=-72.1, z=9), carla.Rotation(yaw=-202, pitch=-53))
 
-        # Front Center Cam Attributes
-        camera_front_right = self.world.get_blueprint_library().find('sensor.camera.rgb')
-        camera_front_right.set_attribute('image_size_x', '1920')
-        camera_front_right.set_attribute('image_size_y', '1200')
-        camera_front_right.set_attribute('fov', '90')
-        camera_front_right.set_attribute('sensor_tick', '0.1')
-        camera_front_right.set_attribute('role_name', 'hero_camera_front_right')
+        transform_camera_node2_left = carla.Transform(carla.Location(x=355.7, y=-134.7, z=9), carla.Rotation(yaw=-247, pitch=-34.5))
+        transform_camera_node2_right = carla.Transform(carla.Location(x=355.7, y=-134.7, z=9), carla.Rotation(yaw=-157, pitch=-34.5))
+        transform_lidar_node2 = carla.Transform(carla.Location(x=355.7, y=-134.7, z=9), carla.Rotation(yaw=-202, pitch=-53))
 
-        # Front Left Cam Attributes
-        camera_front_left = self.world.get_blueprint_library().find('sensor.camera.rgb')
-        camera_front_left.set_attribute('image_size_x', '1920')
-        camera_front_left.set_attribute('image_size_y', '1200')
-        camera_front_left.set_attribute('fov', '90')
-        camera_front_left.set_attribute('sensor_tick', '0.1')
-        camera_front_left.set_attribute('role_name', 'hero_camera_front_left')
+        # Node 1 Attributes
+        camera_node1_left = self.world.get_blueprint_library().find('sensor.camera.rgb')
+        camera_node1_left.set_attribute('image_size_x', '1920')
+        camera_node1_left.set_attribute('image_size_y', '1200')
+        camera_node1_left.set_attribute('fov', '90')
+        camera_node1_left.set_attribute('sensor_tick', '0.1')
+        camera_node1_left.set_attribute('role_name', 'node1_camera_left')
+        camera_node1_right = self.world.get_blueprint_library().find('sensor.camera.rgb')
+        camera_node1_right.set_attribute('image_size_x', '1920')
+        camera_node1_right.set_attribute('image_size_y', '1200')
+        camera_node1_right.set_attribute('fov', '90')
+        camera_node1_right.set_attribute('sensor_tick', '0.1')
+        camera_node1_right.set_attribute('role_name', 'node1_camera_right')
+
 
         # Lidar Attributes
-        lidar = self.world.get_blueprint_library().find('sensor.lidar.ray_cast')
-        lidar.set_attribute('channels', '32')
-        lidar.set_attribute('range', '100')
-        lidar.set_attribute('points_per_second', '100000')
-        lidar.set_attribute('upper_fov', '15')
-        lidar.set_attribute('lower_fov', '-16')
-        lidar.set_attribute('horizontal_fov', '360')
-        lidar.set_attribute('horizontal_fov', '360')
-        lidar.set_attribute('role_name', 'lidar')
+        lidar_node1 = self.world.get_blueprint_library().find('sensor.lidar.ray_cast')
+        lidar_node1.set_attribute('channels', '32')
+        lidar_node1.set_attribute('range', '100')
+        lidar_node1.set_attribute('points_per_second', '100000')
+        lidar_node1.set_attribute('upper_fov', '15')
+        lidar_node1.set_attribute('lower_fov', '-16')
+        lidar_node1.set_attribute('role_name', 'node1_lidar')
+
+        # Node 2 Attributes
+        camera_node2_left = self.world.get_blueprint_library().find('sensor.camera.rgb')
+        camera_node2_left.set_attribute('image_size_x', '1920')
+        camera_node2_left.set_attribute('image_size_y', '1200')
+        camera_node2_left.set_attribute('fov', '90')
+        camera_node2_left.set_attribute('sensor_tick', '0.1')
+        camera_node2_left.set_attribute('role_name', 'node2_camera_left')
+        camera_node2_right = self.world.get_blueprint_library().find('sensor.camera.rgb')
+        camera_node2_right.set_attribute('image_size_x', '1920')
+        camera_node2_right.set_attribute('image_size_y', '1200')
+        camera_node2_right.set_attribute('fov', '90')
+        camera_node2_right.set_attribute('sensor_tick', '0.1')
+        camera_node2_right.set_attribute('role_name', 'node2_camera_right')
+
+
+        # Lidar Attributes
+        lidar_node2 = self.world.get_blueprint_library().find('sensor.lidar.ray_cast')
+        lidar_node2.set_attribute('channels', '32')
+        lidar_node2.set_attribute('range', '100')
+        lidar_node2.set_attribute('points_per_second', '100000')
+        lidar_node2.set_attribute('upper_fov', '15')
+        lidar_node2.set_attribute('lower_fov', '-16')
+        lidar_node2.set_attribute('role_name', 'node2_lidar')
 
         for actor in self.world.get_actors():
-            if actor.attributes.get('role_name') == 'lidar_top':
+            if actor.attributes.get('role_name') == 'node1_lidar':
                 actor.destroy()
-                print('clean lidar')
+                print('clean lidar node 1')
             if actor.type_id == 'sensor.lidar.ray_cast':
                 actor.destroy()
                 print('clean cam lidar again')
-            if actor.attributes.get('role_name') == 'hero_camera_front_right':
+            if actor.attributes.get('role_name') == 'node1_camera_right':
                 actor.destroy()
-                print('clean cam fr')
-            if actor.attributes.get('role_name') == 'hero_camera_front_left':
+                print('clean cam r1')
+            if actor.attributes.get('role_name') == 'node1_camera_left':
                 actor.destroy()
-                print('clean cam fl')
-            if actor.attributes.get('role_name') == 'hero_camera_front_center':
+                print('clean cam l1')
+            if actor.attributes.get('role_name') == 'node2_camera_right':
                 actor.destroy()
-                print('clean cam fc')
-            if actor.attributes.get('role_name') == 'hero_camera_rear':
+                print('clean cam r2')
+            if actor.attributes.get('role_name') == 'node2_camera_left':
                 actor.destroy()
-                print('clean cam re')
+                print('clean cam l2')
 
-        camera1 = self.world.spawn_actor(camera_front_right, transform_camera_front_right)
-        camera2 = self.world.spawn_actor(camera_front_left, transform_camera_front_left)
-        lidar1 = self.world.spawn_actor(lidar, transform_lidar1)
+        camera_node1left = self.world.spawn_actor(camera_node1_left, transform_camera_node1_left)
+        camera_node1right = self.world.spawn_actor(camera_node1_right, transform_camera_node1_right)
+        lidarnode1 = self.world.spawn_actor(lidar_node1, transform_lidar_node1)
+
+        camera_node2left = self.world.spawn_actor(camera_node2_left, transform_camera_node2_left)
+        camera_node2right = self.world.spawn_actor(camera_node2_right, transform_camera_node2_right)
+        lidarnode2 = self.world.spawn_actor(lidar_node2, transform_lidar_node2)
 
         # Set up the sensors.
         self.collision_sensor = CollisionSensor(self.player, self.hud)
-        self.lane_invasion_sensor = LaneInvasionSensor(self.player, self.hud)
+        # self.lane_invasion_sensor = LaneInvasionSensor(self.player, self.hud)
         self.gnss_sensor = GnssSensor(self.player)
         self.imu_sensor = IMUSensor(self.player)
         self.camera_manager = CameraManager(self.player, self.hud, self._gamma)
@@ -335,11 +387,13 @@ class World(object):
         actors = [
             self.camera_manager.sensor,
             self.collision_sensor.sensor,
-            self.lane_invasion_sensor.sensor,
+            # self.lane_invasion_sensor.sensor,
             self.gnss_sensor.sensor,
             self.imu_sensor.sensor,
             self.player,
-            self.car1
+            self.car1,
+            self.car2,
+            self.car3
             ]
         for actor in actors:
             if actor is not None:
@@ -1085,6 +1139,7 @@ def game_loop(args):
             clock.tick_busy_loop(60)
             if controller.parse_events(client, world, clock):
                 return
+
             world.tick(clock)
             world.render(display)
             pygame.display.flip()
