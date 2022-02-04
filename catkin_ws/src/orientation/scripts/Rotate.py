@@ -23,7 +23,7 @@ class Orient():
     def callback(self, pc2_data):
         np_pc2 = ros_numpy.point_cloud2.pointcloud2_to_xyz_array(pc2_data)
         rotated_np_pc2 = np.matmul(np_pc2, self.rotation_matrx)
-        final_output = self.xyz_array_to_pointcloud2(rotated_np_pc2)
+        final_output = self.xyz_array_to_pointcloud2(rotated_np_pc2, frame_id = 'rslidar_front')
         self.pub.publish(final_output)
 
     def rot_matrix(self, roll, pitch, yaw): 
