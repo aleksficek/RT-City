@@ -11,7 +11,6 @@ import numpy as np
 NODE_RATE = 20 # Hz
 ROLL, PITCH, YAW = 20, 20, 20
 
-
 class Orient():
     def __init__(self):
         rospy.init_node('orientation', anonymous=False)
@@ -22,21 +21,10 @@ class Orient():
         rospy.spin()
 
     def callback(self, pc2_data):
-        header = Header()
-        header.frame_id = "map"
-        header.stamp = rospy.Time.now()
-
-        numpy_pc2 = ros_numpy.point_cloud2.get_xyz_points(pc2_data)
-
-        # rotation_matrix = self.rot_matrix
-
-
-        # rospy.loginfo(numpy_pc2)
-
-        # rotated_np_pc2 = numpy_pc2
-
-        # output = pc2.create_cloud(header, fields, rotated)
-        # self.pub.publish(output)
+        np_pc2 = ros_numpy.point_cloud2.pointcloud2_to_xyz_array(pc2_data)
+        rotated_np_pc2 = np.matmul(np_pc2, self.rotation_matrx)
+        final_output = self.xyz_array_to_pointcloud2(rotated_np_pc2)
+        self.pub.publish(final_output)
 
     def rot_matrix(self, roll, pitch, yaw): 
         ''' Compute Rotation Matrix from {B} to {A} = A_R_B given RPY angles using 
@@ -50,15 +38,35 @@ class Orient():
         Rz = np.array([[cos(alpha), -sin(alpha), 0],[sin(alpha),cos(alpha),0],[0,0,1]])
         Ry = np.array([[cos(beta), 0, sin(beta)],[0,1,0],[-sin(beta),0,cos(beta)]])
         Rx = np.array([[1,0,0],[0,cos(gamma),-sin(gamma)],[0,sin(gamma),cos(gamma)]])
-         
         A_R_B = np.matmul(np.matmul(Rz, Ry), Rx)
-        # A_R_B = Rz@Ry@Rx
-        # To check with final form of principal rotation matrix multiplication 
-        # R_XYZ = np.array([[cos(alpha)*cos(beta),cos(alpha)*sin(beta)*sin(gamma)-sin(alpha)*cos(gamma),cos(alpha)*sin(beta)*cos(gamma)+sin(alpha)*sin(gamma)], 
-        # [sin(alpha)*cos(beta),sin(alpha)*sin(beta)*sin(gamma)+cos(alpha)*cos(gamma),sin(alpha)*sin(beta)*cos(gamma)-cos(alpha)*sin(gamma)], 
-        # [-sin(beta),cos(beta)*sin(gamma),cos(beta)*cos(gamma)]]) 
-        # print("\nR_XYZ:\n",R_XYZ) 
         return A_R_B
+
+    def xyz_array_to_pointcloud2(self, points, stamp=None, frame_id=None):
+        '''
+        Create a sensor_msgs.PointCloud2 from an array
+        of points.
+        '''
+        msg = PointCloud2()
+        if stamp:
+            msg.header.stamp = stamp
+        if frame_id:
+            msg.header.frame_id = frame_id
+        if len(points.shape) == 3:
+            msg.height = points.shape[1]
+            msg.width = points.shape[0]
+        else:
+            msg.height = 1
+            msg.width = len(points)
+        msg.fields = [
+            PointField('x', 0, PointField.FLOAT32, 1),
+            PointField('y', 4, PointField.FLOAT32, 1),
+            PointField('z', 8, PointField.FLOAT32, 1)]
+        msg.is_bigendian = False
+        msg.point_step = 12
+        msg.row_step = 12*points.shape[0]
+        msg.is_dense = int(np.isfinite(points).all())
+        msg.data = np.asarray(points, np.float32).tostring()
+        return msg
 
 
 if __name__ == '__main__':
