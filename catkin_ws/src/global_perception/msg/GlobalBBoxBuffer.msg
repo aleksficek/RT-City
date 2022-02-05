@@ -1,4 +1,0 @@
-Header header
-jsk_recognition_msgs/BoundingBoxArray[] node1_buffer
-jsk_recognition_msgs/BoundingBoxArray[] node2_buffer
-jsk_recognition_msgs/BoundingBoxArray[] node3_buffer

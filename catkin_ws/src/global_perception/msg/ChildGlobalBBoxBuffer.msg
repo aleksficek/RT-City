@@ -1,2 +1,0 @@
-Header header
-jsk_recognition_msgs/BoundingBoxArray[] child_buffer_boxes

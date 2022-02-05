@@ -1,12 +1,8 @@
 #!/usr/bin/env python
 
 import rospy
-from std_msgs.msg import String
 from jsk_recognition_msgs.msg import BoundingBoxArray, BoundingBox
 import message_filters as mf
-# from GlobalBBox import GlobalBBoxBuffer
-from global_perception.msg import GlobalBBoxBuffer
-
 from jsk_recognition_msgs.msg import BoundingBoxArray
 from global_perception.msg import ChildGlobalBBoxBuffer
 from BBoxPredictor import BBoxPredictor
@@ -21,14 +17,17 @@ class GlobalFuser():
 
         self.sub_n1 = mf.Subscriber('node1/bounding_boxes', BoundingBoxArray)
         self.sub_n2 = mf.Subscriber('node2/bounding_boxes', BoundingBoxArray)
-        self.sub_n3 = mf.Subscriber('node3/bounding_boxes', BoundingBoxArray)
-        self.time_synch = mf.TimeSynchronizer([self.sub_n1, self.sub_n2, self.sub_n3], 10)
+        self.time_synch = mf.TimeSynchronizer([self.sub_n1, self.sub_n2], 10)
         self.time_synch.registerCallback(self.nodeCallback)
         
-        self.master_buffer = GlobalBBoxBuffer()
+        self.master_buffer = {}
+        self.master_buffer['node1'] = BoundingBoxArray()
+        self.master_buffer['node2'] = BoundingBoxArray()
+
+        # master list of tracked bboxes ('id':(latest_BBox_msg, kalman_filter))
+        self.tracked_bboxes = {}
 
         self.pub = rospy.Publisher('global_fused_bboxes', BoundingBoxArray, queue_size=10)
-        #self.predictions = BBoxPredictor() # class for holding predictions for ID'd bbox
         
         # Run the fuser at 20Hz
         while not rospy.is_shutdown():
@@ -40,9 +39,11 @@ class GlobalFuser():
         fused_buffer.header.stamp = rospy.Time.now()
         fused_buffer.header.frame_id = 'lidar/node1_lidar'
 
-        if (len(self.master_buffer.node1_buffer)>0):
-            for bbox_buffer in [self.master_buffer.node1_buffer, self.master_buffer.node2_buffer, self.master_buffer.node3_buffer]:
-                for bbox in bbox_buffer[0].boxes:
+        if (len(self.master_buffer['node1'].boxes)>0):
+
+            # check for new ID first and simple overlap
+            for node in self.master_buffer:
+                for bbox in self.master_buffer[node].boxes:
                     box_already_there = False   
                     if len(fused_buffer.boxes) == 0:
                         fused_buffer.boxes.append(bbox)
@@ -56,19 +57,32 @@ class GlobalFuser():
                     if not box_already_there:
                         fused_buffer.boxes.append(bbox)
 
+            # look at bbox kfs predicted to this time step
+            ids_to_publish = []
+            for id in self.tracked_bboxes:
+                # get pos and compare to new bboxes to add
+                prediction_pos = self.tracked_bboxes[id][1].get_posn()
+                # if within range, assign it to bbox placeholder in dictionary, update kf
 
-            self.pub.publish(fused_buffer)
-            self.master_buffer.node1_buffer = []
-            self.master_buffer.node2_buffer = []
-            self.master_buffer.node3_buffer = []
+        for id in ids_to_publish:
+            fused_buffer.boxes.append(self.tracked_bboxes[id][1])
+        
+        self.pub.publish(fused_buffer)
 
 
-    def nodeCallback(self, data_n1, data_n2, data_n3):
-        # create new bbox to put in global buffer
-        self.master_buffer.node1_buffer.append(data_n1)
-        self.master_buffer.node2_buffer.append(data_n2)
-        self.master_buffer.node3_buffer.append(data_n3)
-        # self.fuserRun50ms(data_n1, data_n2, data_n3)
+    def nodeCallback(self, data_n1, data_n2):
+        # Add all bboxes to raw buffer
+        self.master_buffer['node1'].header = data_n1.header
+        self.master_buffer['node1'].boxes = data_n1.boxes
+        self.master_buffer['node2'].header = data_n1.header
+        self.master_buffer['node2'].boxes = data_n1.boxes
+
+        # run predictions on all bboxes from last time step
+        self.runAllPredictions()
+
+    def runAllPredictions(self):
+        for kf in self.bbox_kfs():
+            kf.predict()
         
 
 if __name__ == '__main__':
