@@ -10,6 +10,25 @@ class BBoxPredictor():
 	measurement_dim = 3
 	state_variables = 6
 	delta_t = 0.1 #s
+
+	'''
+	State Variables: 
+		[
+			x_pos;
+			x_vel;
+			y_pos;
+			y_vel;
+			z_pos;
+			z_vel;
+		]
+
+	motion model:
+		x_pos (k+1) = x_pos(k) + delta_T * x_vel(k)
+		x_vel (k+1) = x_vel(k)  
+
+
+	
+	'''
 	
 	motion_model = np.array([[1., delta_t, 0., 0., 0., 0.],
 							[0., 1., 0., 0., 0., 0.],

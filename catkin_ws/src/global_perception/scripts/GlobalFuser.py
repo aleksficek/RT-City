@@ -4,7 +4,6 @@ import rospy
 from jsk_recognition_msgs.msg import BoundingBoxArray, BoundingBox
 import message_filters as mf
 from jsk_recognition_msgs.msg import BoundingBoxArray
-from global_perception.msg import ChildGlobalBBoxBuffer
 from BBoxPredictor import BBoxPredictor
 
 NODE_RATE = 20 # Hz
@@ -24,7 +23,15 @@ class GlobalFuser():
         self.master_buffer['node1'] = BoundingBoxArray()
         self.master_buffer['node2'] = BoundingBoxArray()
 
-        # master list of tracked bboxes ('id':(latest_BBox_msg, kalman_filter))
+        ''' 
+        master list of tracked bboxes ('id': (latest_BBox_msg, kalman_filter, timesteps_missed))
+
+        New Idea:
+            'id':
+                'latest_bbox': BoundingBox()
+                'kf': BBoxPredictor()
+                'timesteps_missed': count (just an int value)
+        '''
         self.tracked_bboxes = {}
 
         self.pub = rospy.Publisher('global_fused_bboxes', BoundingBoxArray, queue_size=10)
@@ -35,6 +42,30 @@ class GlobalFuser():
             self.rate.sleep()
 
     def fuserRun50ms(self, event=None):
+
+        '''
+        Basic Idea:
+            1. first check if we have a new ID
+            2. if new ID check all predictions to see if any match within a tolerance
+                - reassign ID
+                - update bbox KF with latest measurements
+                - keep track of the IDs we have updated 
+                else add a new track and ID to global tracker
+                - update bbox KF with latest measurements
+                - keep track of the IDs we have updated 
+
+            else if we dont have a new ID
+                - update bbox KF with latest measurements
+                - keep track of the IDs we have updated 
+            
+            3. check what IDs werent updated, if ID hasnt been updated add to 1 to count
+                - if reached time threshold we drop bbox ID from dictionary
+
+            4. update latest bbox with KF position(maybe)
+            5. publish all latest bboxes from dictionary
+        '''
+
+        # old code
         fused_buffer = BoundingBoxArray()
         fused_buffer.header.stamp = rospy.Time.now()
         fused_buffer.header.frame_id = 'lidar/node1_lidar'
@@ -56,6 +87,7 @@ class GlobalFuser():
                             break
                     if not box_already_there:
                         fused_buffer.boxes.append(bbox)
+        # end old code
 
             # look at bbox kfs predicted to this time step
             ids_to_publish = []
@@ -81,7 +113,7 @@ class GlobalFuser():
         self.runAllPredictions()
 
     def runAllPredictions(self):
-        for kf in self.bbox_kfs():
+        for kf in self.tracked_bboxes():
             kf.predict()
         
 
