@@ -61,6 +61,7 @@ class BBoxPredictor():
 		return self.kf.x
 
 	def update(self, sensor_measurement):
+		print(sensor_measurement)
 		self.kf.update(sensor_measurement)
 
 	def get_posn(self):
