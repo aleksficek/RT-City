@@ -7,17 +7,22 @@ from jsk_recognition_msgs.msg import BoundingBoxArray
 from BBoxPredictor import BBoxPredictor
 
 NODE_RATE = 20 # Hz
-POSITION_TOLERANCE = 0.15 #m
+POSITION_TOLERANCE = 2. #m
+TIME_THRESHOLD = 50
 
 class GlobalFuser():
     def __init__(self):
         rospy.init_node('global_perception', anonymous=False)
         self.rate = rospy.Rate(NODE_RATE)
 
-        self.sub_n1 = mf.Subscriber('node1/bounding_boxes', BoundingBoxArray)
-        self.sub_n2 = mf.Subscriber('node2/bounding_boxes', BoundingBoxArray)
-        self.time_synch = mf.TimeSynchronizer([self.sub_n1, self.sub_n2], 10)
-        self.time_synch.registerCallback(self.nodeCallback)
+        sub_n1 = mf.Subscriber('node1/bounding_boxes', BoundingBoxArray)
+        sub_n2 = mf.Subscriber('node2/bounding_boxes', BoundingBoxArray)
+
+        sub_n12 = mf.Subscriber('node1/bounding_boxes', BoundingBoxArray)
+        # sub_n12.registerCallback(self.testCallback)
+        # time_synch = mf.TimeSynchronizer([sub_n1, sub_n2], 10)
+        sub_n1.registerCallback(self.nodeCallback)
+        sub_n2.registerCallback(self.nodeCallback)
         
         self.master_buffer = {}
         self.master_buffer['node1'] = BoundingBoxArray()
@@ -63,10 +68,17 @@ class GlobalFuser():
         '''
         ids_updated = []
         # update tracker with ids recieved
-        for node in self.master_buffer:
+        for node in self.master_buffer.keys():
+            # print(node)
             for bbox in self.master_buffer[node].boxes:
+                # print(bbox.value)
                 if str(bbox.value) in self.tracked_bboxes:
                     # we have seen this ID, update it with latest bbox and kf
+                    # print("seen this id, update it")
+                    # if bbox.value == 4.0:
+                    #     print("here")
+                    #     id_key = '3.0'
+                    # else:
                     id_key = str(bbox.value)
                     self.tracked_bboxes[id_key]['latest_bbox'] = bbox
                     bbox_pos = [bbox.pose.position.x,
@@ -79,82 +91,95 @@ class GlobalFuser():
                     ids_to_check = list(set(self.tracked_bboxes.keys())- set(ids_updated))
                     if len(ids_to_check) == 0:
                         # its a new id to add to the tracker
+                        print("new id to tracker")
                         id_key = str(bbox.value)
                         self.tracked_bboxes[id_key] = {}
+                        self.tracked_bboxes[id_key]['timesteps_missed'] = 0
                         self.tracked_bboxes[id_key]['latest_bbox'] = bbox
                         bbox_pos = [bbox.pose.position.x,
                                     1,
                                     bbox.pose.position.y,
-                                    1,
+                                    2,
                                     bbox.pose.position.z,
                                     0]
                         self.tracked_bboxes[id_key]['kf'] = BBoxPredictor(bbox_pos)
                         ids_updated.append(id_key)
                         break #break ids to check
                     else:
-                        for id in ids_to_check:
-                            predicted_pos = self.tracked_bboxes[id]['kf'].get_posn()
+                        for id in self.tracked_bboxes.keys():
+                            predicted_pos = self.tracked_bboxes[id]['kf'].predict()
                             diff_x = abs(bbox.pose.position.x - predicted_pos[0])
                             diff_y = abs(bbox.pose.position.y - predicted_pos[1])
                             diff_z = abs(bbox.pose.position.z - predicted_pos[2])
+                            print (diff_x, diff_y, diff_z)
                             if diff_x < POSITION_TOLERANCE and diff_y < POSITION_TOLERANCE and diff_z < POSITION_TOLERANCE:
                                 # we recognize this bbox lets update its pos in tracker
-                                self.tracked_bboxes[id]['latest_bbox'] = bbox
+                                print("matches other id")
+                                self.tracked_bboxes[id]['latest_bbox'].header = bbox.header
+                                self.tracked_bboxes[id]['latest_bbox'].pose.position = bbox.pose.position
                                 bbox_pos = [bbox.pose.position.x,
                                             bbox.pose.position.y,
                                             bbox.pose.position.z]
+                                print("update")
                                 self.tracked_bboxes[id]['kf'].update(bbox_pos)
                                 ids_updated.append(id)
                                 break #break ids to check
                             else:
                                 # its a new id to add to the tracker
+                                print("new id to tracker 2")
                                 id_key = str(bbox.value)
+                                self.tracked_bboxes[id_key] = {}
+                                self.tracked_bboxes[id_key]['timesteps_missed'] = 0
                                 self.tracked_bboxes[id_key]['latest_bbox'] = bbox
                                 bbox_pos = [bbox.pose.position.x,
+                                            1,
                                             bbox.pose.position.y,
-                                            bbox.pose.position.z]
-                                self.tracked_bboxes[id_key]['kf'].update(bbox_pos)
+                                            1,
+                                            bbox.pose.position.z,
+                                            0]
+                                self.tracked_bboxes[id_key]['kf'] = BBoxPredictor(bbox_pos)
                                 ids_updated.append(id_key)
                                 break #break ids to check
 
         # check all the ids not updated, update with prediction instead
         ids_not_updated = list(set(self.tracked_bboxes.keys()) - set(ids_updated))
         for id in ids_not_updated:
-            self.tracked_bboxes[id][timesteps_missed] +=1
-            if self.tracked_bboxes[id][timesteps_missed] > TIME_THRESHOLD:
+            self.tracked_bboxes[id]['timesteps_missed'] +=1
+            if self.tracked_bboxes[id]['timesteps_missed'] > TIME_THRESHOLD:
                 # bbox has been gone to long delete it from tracker
-                del self.tracked_bboxes[id]
+                print("deleting id " + str(id))
+                # del self.tracked_bboxes[id]
             else:
                 # else use its prediction for now
+                self.tracked_bboxes[id]['kf'].predict()
                 predicted_pos = self.tracked_bboxes[id]['kf'].get_posn() 
-                self.latest_bbox.pose.position.x = predicted_pos[0]
-                self.latest_bbox.pose.position.y = predicted_pos[1]
-                self.latest_bbox.pose.position.z = predicted_pos[2]
+                self.tracked_bboxes[id]['latest_bbox'].pose.position.x = predicted_pos[0]
+                self.tracked_bboxes[id]['latest_bbox'].pose.position.y = predicted_pos[1]
+                self.tracked_bboxes[id]['latest_bbox'].pose.position.z = predicted_pos[2]
             
         # at this point everything left in tracker should have its latest bbox published
         fused_buffer = BoundingBoxArray()
         fused_buffer.header.frame_id = 'map'
-        # print(self.tracked_bboxes)
-        for id in self.tracked_bboxes:
+        for id in self.tracked_bboxes.keys():
             fused_buffer.boxes.append(self.tracked_bboxes[id]['latest_bbox'])
         
         self.pub.publish(fused_buffer)
 
+    # def testCallback(self, data_n1):
+    #     self.master_buffer['node1'].header = data_n1.header
+    #     self.master_buffer['node1'].boxes = data_n1.boxes
+    #     print(len(data_n1.boxes))
 
-    def nodeCallback(self, data_n1, data_n2):
+    def nodeCallback(self, data_n1):
         # Add all bboxes to raw buffer
         self.master_buffer['node1'].header = data_n1.header
         self.master_buffer['node1'].boxes = data_n1.boxes
-        
-        self.master_buffer['node2'].header = data_n1.header
-        self.master_buffer['node2'].boxes = data_n1.boxes
-        print("here")
-        # run predictions on all bboxes from last time step
-        self.runAllPredictions()
-
-    def runAllPredictions(self):
-        for id in self.tracked_bboxes:
-            self.tracked_bboxes[id]['kf'].predict()
+        # print(len(data_n1.boxes))
+        # if len(data_n1.boxes) == 3:
+        #     print("found it")
+        # self.master_buffer['node2'].header = data_n2.header
+        # self.master_buffer['node2'].boxes = data_n2.boxes
+        # print(len(data_n2.boxes))
         
 
 if __name__ == '__main__':
