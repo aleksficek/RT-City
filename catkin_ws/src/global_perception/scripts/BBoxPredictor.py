@@ -10,7 +10,7 @@ class BBoxPredictor():
 	measurement_dim = 3
 	state_variables = 6
 	delta_t = 0.1 #s
-
+	gate_value = 2.204
 	'''
 	State Variables: 
 		[
