@@ -10,8 +10,7 @@ from BBoxPredictor import BBoxPredictor
 NODE_RATE = 20 # Hz
 POSITION_TOLERANCE = 2. #m
 TIME_THRESHOLD = 150
-
-TOL = 0.01
+TOL = 0.5
 
 class GlobalFuser():
     def __init__(self):
@@ -48,49 +47,30 @@ class GlobalFuser():
 
     def fuserRun50ms(self, event=None):
 
-        '''
-        Basic Idea:
-            1. first check if we have a new ID
-            2. if new ID check all predictions to see if any match within a tolerance
-                - reassign ID
-                - update bbox KF with latest measurements
-                - keep track of the IDs we have updated 
-                else add a new track and ID to global tracker
-                - update bbox KF with latest measurements
-                - keep track of the IDs we have updated 
-
-            else if we dont have a new ID
-                - update bbox KF with latest measurements
-                - keep track of the IDs we have updated 
-            
-            3. check what IDs werent updated, if ID hasnt been updated add to 1 to count
-                - if reached time threshold we drop bbox ID from dictionary
-
-            4. update latest bbox with KF position(maybe)
-            5. publish all latest bboxes from dictionary
-        '''
         ids_updated = []
-        deleted_keys = []
         print(self.tracked_bboxes.keys())
         # update tracker with ids recieved
         for node in self.master_buffer.keys():
             for bbox in self.master_buffer[node].boxes:
-                if str(bbox.value) in self.tracked_bboxes:
+                if str(bbox.value) in self.tracked_bboxes.keys():
                     id_key = str(bbox.value)
-                    self.tracked_bboxes[id_key]['timesteps_missed'] = 0
-                    self.tracked_bboxes[id_key]['latest_bbox'].pose = bbox.pose
-                    self.tracked_bboxes[id_key]['latest_bbox'].header = bbox.header
-                    self.tracked_bboxes[id_key]['latest_bbox'].value = float(id_key)
-                    # self.tracked_bboxes[id_key]['latest_bbox'] = bbox
+                    if abs(self.tracked_bboxes[id_key]['latest_bbox'].dimensions.x - bbox.dimensions.x)>TOL:
+                        self.tracked_bboxes[id_key]['timesteps_missed'] = 0
+                        self.tracked_bboxes[id_key]['latest_bbox'].pose = bbox.pose
+                        self.tracked_bboxes[id_key]['latest_bbox'].header = bbox.header
+                        self.tracked_bboxes[id_key]['latest_bbox'].value = float(id_key)
+                    else:
+                        self.tracked_bboxes[id_key]['latest_bbox'] = bbox
                     bbox_pos = [bbox.pose.position.x,
                                 bbox.pose.position.y,
                                 bbox.pose.position.z]
                     self.tracked_bboxes[id_key]['kf'].update(bbox_pos)
                     ids_updated.append(id_key)
                     continue
-                
+
                 # we dont recognize this bbox check all predictions first
                 found_match = False
+                min_gate_value = 10000000000000000
                 for id in self.tracked_bboxes.keys():
                     # gating try
                     self.tracked_bboxes[id]['kf'].predict()
@@ -106,6 +86,8 @@ class GlobalFuser():
                     S_inv = np.linalg.inv(S)
                     gate_value = np.dot(np.dot(np.transpose(id_residual_np), S_inv), id_residual_np)
                     
+                    if gate_value < min_gate_value:
+                        min_gate_value = gate_value
                     
                     print(gate_value, id, bbox.value)
                     if gate_value < BBoxPredictor.gate_value:
@@ -113,8 +95,12 @@ class GlobalFuser():
                         print(gate_value, id, bbox.value)
                         # we have seen this ID, update it with latest bbox and kf
                         self.tracked_bboxes[id]['timesteps_missed'] = 0
-                        self.tracked_bboxes[id]['latest_bbox'].pose = bbox.pose
-                        self.tracked_bboxes[id]['latest_bbox'].header = bbox.header
+                        if abs(self.tracked_bboxes[id]['latest_bbox'].dimensions.x - bbox.dimensions.x)>TOL:
+                            self.tracked_bboxes[id]['timesteps_missed'] = 0
+                            self.tracked_bboxes[id]['latest_bbox'].pose = bbox.pose
+                            self.tracked_bboxes[id]['latest_bbox'].header = bbox.header
+                        else:
+                            self.tracked_bboxes[id]['latest_bbox'] = bbox
                         self.tracked_bboxes[id]['latest_bbox'].value = float(id)
                         bbox_pos = [bbox.pose.position.x,
                                     bbox.pose.position.y,
@@ -124,7 +110,7 @@ class GlobalFuser():
                         found_match = True
                     
                 
-                if not found_match and bbox.value != 4.0:
+                if not found_match and min_gate_value > BBoxPredictor.new_track_threshold:
                     # its a new id to add to the tracker
                     id_key = str(bbox.value)
                     print("new id to tracker id: " + id_key)
@@ -143,7 +129,7 @@ class GlobalFuser():
         # check all the ids not updated, update with prediction instead
         ids_not_updated = list(set(self.tracked_bboxes.keys()) - set(ids_updated))
         for id in ids_not_updated:
-            self.tracked_bboxes[id]['timesteps_missed'] +=1
+            self.tracked_bboxes[id]['timesteps_missed'] += 1
             if self.tracked_bboxes[id]['timesteps_missed'] > TIME_THRESHOLD:
                 pass
                 # bbox has been gone too long delete it from tracker

@@ -9,8 +9,10 @@ from jsk_recognition_msgs.msg import BoundingBoxArray, BoundingBox
 class BBoxPredictor():
 	measurement_dim = 3
 	state_variables = 6
-	delta_t = 0.1 #s
+	delta_t = 0.05 #s
 	gate_value = 2.204
+	new_track_threshold = 500
+
 	'''
 	State Variables: 
 		[
