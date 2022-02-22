@@ -15,8 +15,6 @@ public:
     sub_ = n_.subscribe("bbox_array", 1, &SubscribeAndPublish::callback, this);
   }
 
-  // jsk_recognition_msgs::BoundingBoxArray
-
   void callback(const jsk_recognition_msgs::BoundingBoxArray::ConstPtr& some_msg)
   {
     ROS_INFO("Received bbox");
@@ -28,14 +26,14 @@ private:
   ros::Publisher pub_;
   ros::Subscriber sub_;
 
-};//End of class SubscribeAndPublish
+};
 
 int main(int argc, char **argv)
 {
   //Initiate ROS
   ros::init(argc, argv, "subscribe_and_publish");
 
-  //Create an object of class SubscribeAndPublish that will take care of everything
+  //Create an object of class SubscribeAndPublish
   SubscribeAndPublish SAPObject;
 
   ros::spin();
