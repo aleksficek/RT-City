@@ -1,6 +1,8 @@
 #include <ros/ros.h>
 #include "std_msgs/String.h"
 #include <sstream>
+#include <jsk_recognition_msgs/BoundingBox.h>
+#include <jsk_recognition_msgs/BoundingBoxArray.h>
 
 class SubscribeAndPublish
 {
@@ -8,21 +10,17 @@ public:
   SubscribeAndPublish()
   {
     //Topic you want to publish
-    pub_ = n_.advertise<std_msgs::String>("published_topic", 1);
-
+    pub_ = n_.advertise<jsk_recognition_msgs::BoundingBoxArray>("published_topic", 1);
     //Topic you want to subscribe
-    sub_ = n_.subscribe("subscribed_topic", 1, &SubscribeAndPublish::callback, this);
+    sub_ = n_.subscribe("bbox_array", 1, &SubscribeAndPublish::callback, this);
   }
 
-  void callback(const std_msgs::String::ConstPtr& some_msg)
+  // jsk_recognition_msgs::BoundingBoxArray
+
+  void callback(const jsk_recognition_msgs::BoundingBoxArray::ConstPtr& some_msg)
   {
-    // std_msgs::String output;
-    //.... do something with the input and generate the output...
-    std_msgs::String msg;
-    std::stringstream ss;
-    ss << "hello world " << 4;
-    msg.data = ss.str();
-    pub_.publish(msg);
+    ROS_INFO("Received bbox");
+    pub_.publish(some_msg);
   }
 
 private:
