@@ -40,12 +40,12 @@ class BBoxPredictor():
 								[0., 0., 1., 0., 0., 0.],
 								[0., 0., 0., 0., 1., 0.]])
 
-	default_q = np.array([[0.5, 0., 0., 0., 0., 0.],
-						[0., 0.5, 0., 0., 0., 0.],
-						[0., 0., 0.5, 0., 0., 0.],
-						[0., 0., 0., 0.5, 0., 0.],
-						[0., 0., 0., 0., 0.5, 0.],
-						[0., 0., 0., 0., 0., 0.5]])
+	default_q = np.array([[0.35, 0., 0., 0., 0., 0.],
+						[0., 1., 0., 0., 0., 0.],
+						[0., 0., 0.35, 0., 0., 0.],
+						[0., 0., 0., 1., 0., 0.],
+						[0., 0., 0., 0., 0.35, 0.],
+						[0., 0., 0., 0., 0., 1.]])
 
 	def __init__(self, state_variable_init, Q=0, R=0):
 		self.kf = KalmanFilter(dim_x=BBoxPredictor.state_variables, dim_z=BBoxPredictor.measurement_dim)

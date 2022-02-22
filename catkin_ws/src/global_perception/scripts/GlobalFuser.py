@@ -12,6 +12,29 @@ POSITION_TOLERANCE = 2. #m
 TIME_THRESHOLD = 150
 TOL = 0.5
 
+'''
+To Fix 
+- Synchronization issues for multiple nodes in callback?
+    - maybe a flag to say when to empty buffer?
+    - two callbacks 
+    - flag for buffer 
+    - make copy of buffer before processing
+
+- scenario for threshold tuning 
+
+
+- Tune Q and R
+    - get measurement noise R based on Y value from sensor
+    - dynamic R
+    - start on scale of 0-1 
+
+
+- Tune Gate value thresholds 
+
+
+
+'''
+
 class GlobalFuser():
     def __init__(self):
         rospy.init_node('global_perception', anonymous=False)
@@ -99,7 +122,9 @@ class GlobalFuser():
                             self.tracked_bboxes[id]['timesteps_missed'] = 0
                             self.tracked_bboxes[id]['latest_bbox'].pose = bbox.pose
                             self.tracked_bboxes[id]['latest_bbox'].header = bbox.header
+                            print("if")
                         else:
+                            print("else")
                             self.tracked_bboxes[id]['latest_bbox'] = bbox
                         self.tracked_bboxes[id]['latest_bbox'].value = float(id)
                         bbox_pos = [bbox.pose.position.x,
@@ -137,6 +162,7 @@ class GlobalFuser():
                 del self.tracked_bboxes[id]
             else:
                 # else use its prediction for now
+                print("using prediction" + id)
                 self.tracked_bboxes[id]['kf'].predict()
                 predicted_pos = self.tracked_bboxes[id]['kf'].get_posn() 
                 self.tracked_bboxes[id]['latest_bbox'].pose.position.x = predicted_pos[0]
