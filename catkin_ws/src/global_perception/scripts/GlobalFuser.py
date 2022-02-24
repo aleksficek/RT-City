@@ -43,15 +43,15 @@ class GlobalFuser():
         sub_n1 = mf.Subscriber('node1/bounding_boxes', BoundingBoxArray)
         sub_n2 = mf.Subscriber('node2/bounding_boxes', BoundingBoxArray)
 
-        sub_n12 = mf.Subscriber('node1/bounding_boxes', BoundingBoxArray)
-        # sub_n12.registerCallback(self.testCallback)
-        # time_synch = mf.TimeSynchronizer([sub_n1, sub_n2], 10)
-        sub_n1.registerCallback(self.nodeCallback)
-        sub_n2.registerCallback(self.nodeCallback)
+        sub_n1.registerCallback(self.node1Callback)
+        sub_n2.registerCallback(self.node2Callback)
         
         self.master_buffer = {}
-        self.master_buffer['node1'] = BoundingBoxArray()
-        self.master_buffer['node2'] = BoundingBoxArray()
+        self.master_buffer['node1'] = [BoundingBoxArray(), BoundingBoxArray()]
+        self.master_buffer['node2'] = [BoundingBoxArray(), BoundingBoxArray()]
+        self.indexes = {}
+        self.indexes['node1'] = 0
+        self.indexes['node2'] = 0
 
         '''
             'id':
@@ -74,7 +74,10 @@ class GlobalFuser():
         print(self.tracked_bboxes.keys())
         # update tracker with ids recieved
         for node in self.master_buffer.keys():
-            for bbox in self.master_buffer[node].boxes:
+            buffer_index = 0
+            if not self.indexes[node]:
+                buffer_index = 1
+            for bbox in self.master_buffer[node][buffer_index].boxes:
                 if str(bbox.value) in self.tracked_bboxes.keys():
                     id_key = str(bbox.value)
                     if abs(self.tracked_bboxes[id_key]['latest_bbox'].dimensions.x - bbox.dimensions.x)>TOL:
@@ -83,6 +86,7 @@ class GlobalFuser():
                         self.tracked_bboxes[id_key]['latest_bbox'].header = bbox.header
                         self.tracked_bboxes[id_key]['latest_bbox'].value = float(id_key)
                     else:
+                        self.tracked_bboxes[id_key]['timesteps_missed'] = 0
                         self.tracked_bboxes[id_key]['latest_bbox'] = bbox
                     bbox_pos = [bbox.pose.position.x,
                                 bbox.pose.position.y,
@@ -96,7 +100,6 @@ class GlobalFuser():
                 min_gate_value = 10000000000000000
                 for id in self.tracked_bboxes.keys():
                     # gating try
-                    self.tracked_bboxes[id]['kf'].predict()
                     predicted_pos = self.tracked_bboxes[id]['kf'].get_posn()
                     id_residual = [0, 0, 0]
                     id_residual[0] = bbox.pose.position.x - predicted_pos[0]
@@ -122,9 +125,7 @@ class GlobalFuser():
                             self.tracked_bboxes[id]['timesteps_missed'] = 0
                             self.tracked_bboxes[id]['latest_bbox'].pose = bbox.pose
                             self.tracked_bboxes[id]['latest_bbox'].header = bbox.header
-                            print("if")
                         else:
-                            print("else")
                             self.tracked_bboxes[id]['latest_bbox'] = bbox
                         self.tracked_bboxes[id]['latest_bbox'].value = float(id)
                         bbox_pos = [bbox.pose.position.x,
@@ -156,18 +157,16 @@ class GlobalFuser():
         for id in ids_not_updated:
             self.tracked_bboxes[id]['timesteps_missed'] += 1
             if self.tracked_bboxes[id]['timesteps_missed'] > TIME_THRESHOLD:
-                pass
                 # bbox has been gone too long delete it from tracker
                 print("deleting id " + str(id))
                 del self.tracked_bboxes[id]
             else:
-                # else use its prediction for now
-                print("using prediction" + id)
+                # else update its prediction for now
                 self.tracked_bboxes[id]['kf'].predict()
-                predicted_pos = self.tracked_bboxes[id]['kf'].get_posn() 
-                self.tracked_bboxes[id]['latest_bbox'].pose.position.x = predicted_pos[0]
-                self.tracked_bboxes[id]['latest_bbox'].pose.position.y = predicted_pos[1]
-                self.tracked_bboxes[id]['latest_bbox'].pose.position.z = predicted_pos[2]
+                # predicted_pos = self.tracked_bboxes[id]['kf'].get_posn() 
+                # self.tracked_bboxes[id]['latest_bbox'].pose.position.x = predicted_pos[0]
+                # self.tracked_bboxes[id]['latest_bbox'].pose.position.y = predicted_pos[1]
+                # self.tracked_bboxes[id]['latest_bbox'].pose.position.z = predicted_pos[2]
             
         # at this point everything left in tracker should have its latest bbox published
         fused_buffer = BoundingBoxArray()
@@ -177,17 +176,25 @@ class GlobalFuser():
         
         self.pub.publish(fused_buffer)
 
+        self.master_buffer['node1'][buffer_index].boxes = []
+        self.master_buffer['node2'][buffer_index].boxes = []
 
-    def nodeCallback(self, data_n1):
+
+    def node1Callback(self, data):
         # Add all bboxes to raw buffer
-        self.master_buffer['node1'].header = data_n1.header
-        self.master_buffer['node1'].boxes = data_n1.boxes
-        # print(len(data_n1.boxes))
-        # if len(data_n1.boxes) == 3:
-        #     print("found it")
-        # self.master_buffer['node2'].header = data_n2.header
-        # self.master_buffer['node2'].boxes = data_n2.boxes
-        # print(len(data_n2.boxes))
+        buffer_index = self.indexes['node1']
+        self.master_buffer['node1'][buffer_index].header = data.header
+        self.master_buffer['node1'][buffer_index].boxes = data.boxes
+
+        self.indexes['node1'] = (self.indexes['node1'] + 1) %2
+
+    def node2Callback(self, data):
+        # Add all bboxes to raw buffer
+        buffer_index = self.indexes['node2']
+        self.master_buffer['node2'][buffer_index].header = data.header
+        self.master_buffer['node2'][buffer_index].boxes = data.boxes
+
+        self.indexes['node2'] = (self.indexes['node2'] + 1) %2
         
 
 if __name__ == '__main__':
