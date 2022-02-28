@@ -10,7 +10,8 @@ class BBoxPredictor():
 	measurement_dim = 3
 	state_variables = 6
 	delta_t = 0.05 #s
-	gate_value = 2.204
+	gate_value = 0.584
+	# gate_value = 2.204
 	new_track_threshold = 500
 
 	'''
