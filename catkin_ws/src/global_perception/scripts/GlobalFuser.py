@@ -1,38 +1,23 @@
 #!/usr/bin/env python
 
 import rospy
-from jsk_recognition_msgs.msg import BoundingBoxArray, BoundingBox
 import message_filters as mf
 import numpy as np
-from jsk_recognition_msgs.msg import BoundingBoxArray
 from BBoxPredictor import BBoxPredictor
+from jsk_recognition_msgs.msg import BoundingBoxArray, BoundingBox
 
 NODE_RATE = 20 # Hz
-POSITION_TOLERANCE = 2. #m
-TIME_THRESHOLD = 150
-TOL = 0.5
+TIME_THRESHOLD = 150 #7.5s
+TOL = 0.5 #m
 
 '''
-To Fix 
-- Synchronization issues for multiple nodes in callback?
-    - maybe a flag to say when to empty buffer?
-    - two callbacks 
-    - flag for buffer 
-    - make copy of buffer before processing
-
+To Fix:
 - scenario for threshold tuning 
-
-
-- Tune Q and R
+- tune tolerance for seeing half bbox
+- Tune R
     - get measurement noise R based on Y value from sensor
     - dynamic R
     - start on scale of 0-1 
-
-
-- Tune Gate value thresholds 
-
-
-
 '''
 
 class GlobalFuser():
@@ -53,14 +38,16 @@ class GlobalFuser():
         self.indexes['node1'] = 0
         self.indexes['node2'] = 0
 
+        self.tracked_bboxes = {}
         '''
+        tracked_bboxes {
             'id':
                 'latest_bbox': BoundingBox()
                 'kf': BBoxPredictor()
                 'equal_ids: list[]
                 'timesteps_missed': count (just an int value)
+        }
         '''
-        self.tracked_bboxes = {}
 
         self.pub = rospy.Publisher('global_fused_bboxes', BoundingBoxArray, queue_size=10)
         
@@ -80,9 +67,9 @@ class GlobalFuser():
                 buffer_index = 1
             for bbox in self.master_buffer[node][buffer_index].boxes:
 
-                # TEST
-                if bbox.value == 3.0 and node == 'node2':
-                    bbox.value = 5.0
+                # TEST CODE
+                # if bbox.value == 3.0 and node == 'node2':
+                #     bbox.value = 5.0
 
 
                 if str(bbox.value) in self.tracked_bboxes.keys():

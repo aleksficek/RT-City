@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # Class that implemnts a Kalman filter for each bbox
-
 import numpy as np
 from filterpy.kalman import KalmanFilter
 from filterpy.common import Q_discrete_white_noise
@@ -10,9 +9,9 @@ class BBoxPredictor():
 	measurement_dim = 3
 	state_variables = 6
 	delta_t = 0.05 #s
-	gate_value = 0.584
-	# gate_value = 2.204
-	new_track_threshold = 500
+	gate_value = 0.584 #3 DOF 90%
+	# gate_value = 2.204 #6 DOF 90%
+	new_track_threshold = 500 
 
 	'''
 	State Variables: 
@@ -48,13 +47,15 @@ class BBoxPredictor():
 						[0., 0., 0., 0., 0.35, 0.],
 						[0., 0., 0., 0., 0., 1.]])
 
-	def __init__(self, state_variable_init, Q=0, R=0):
+	default_r = 0.5
+
+	def __init__(self, state_variable_init):
 		self.kf = KalmanFilter(dim_x=BBoxPredictor.state_variables, dim_z=BBoxPredictor.measurement_dim)
 		self.kf.x = np.array(state_variable_init)
 		self.kf.F = BBoxPredictor.motion_model
 		self.kf.H = BBoxPredictor.measuremnt_model
-		self.kf.P = 0 #initial covarience matrix
-		self.kf.R = R
+		self.kf.P = 1000 #initial covarience matrix
+		self.kf.R = BBoxPredictor.default_r
 		self.kf.Q = BBoxPredictor.default_q
 		self.kf.predict()
 
