@@ -1,34 +1,55 @@
 #!/usr/bin/env python
 
 import rospy
-from std_msgs.msg import String
-from jsk_recognition_msgs.msg import BoundingBoxArray, BoundingBox
 import message_filters as mf
-# from GlobalBBox import GlobalBBoxBuffer
-from global_perception.msg import GlobalBBoxBuffer
-
-from jsk_recognition_msgs.msg import BoundingBoxArray
-from global_perception.msg import ChildGlobalBBoxBuffer
+import numpy as np
 from BBoxPredictor import BBoxPredictor
+from jsk_recognition_msgs.msg import BoundingBoxArray, BoundingBox
 
 NODE_RATE = 20 # Hz
-POSITION_TOLERANCE = 0.15 #m
+TIME_THRESHOLD = 150 #7.5s
+TOL = 0.5 #m
+
+'''
+To Fix:
+- scenario for threshold tuning 
+- tune tolerance for seeing half bbox
+- Tune R
+    - get measurement noise R based on Y value from sensor
+    - dynamic R
+    - start on scale of 0-1 
+'''
 
 class GlobalFuser():
     def __init__(self):
         rospy.init_node('global_perception', anonymous=False)
         self.rate = rospy.Rate(NODE_RATE)
 
-        self.sub_n1 = mf.Subscriber('node1/bounding_boxes', BoundingBoxArray)
-        self.sub_n2 = mf.Subscriber('node2/bounding_boxes', BoundingBoxArray)
-        self.sub_n3 = mf.Subscriber('node3/bounding_boxes', BoundingBoxArray)
-        self.time_synch = mf.TimeSynchronizer([self.sub_n1, self.sub_n2, self.sub_n3], 10)
-        self.time_synch.registerCallback(self.nodeCallback)
+        sub_n1 = mf.Subscriber('node1/bounding_boxes', BoundingBoxArray)
+        sub_n2 = mf.Subscriber('node2/bounding_boxes', BoundingBoxArray)
+
+        sub_n1.registerCallback(self.node1Callback)
+        sub_n2.registerCallback(self.node2Callback)
         
-        self.master_buffer = GlobalBBoxBuffer()
+        self.master_buffer = {}
+        self.master_buffer['node1'] = [BoundingBoxArray(), BoundingBoxArray()]
+        self.master_buffer['node2'] = [BoundingBoxArray(), BoundingBoxArray()]
+        self.indexes = {}
+        self.indexes['node1'] = 0
+        self.indexes['node2'] = 0
+
+        self.tracked_bboxes = {}
+        '''
+        tracked_bboxes {
+            'id':
+                'latest_bbox': BoundingBox()
+                'kf': BBoxPredictor()
+                'equal_ids: list[]
+                'timesteps_missed': count (just an int value)
+        }
+        '''
 
         self.pub = rospy.Publisher('global_fused_bboxes', BoundingBoxArray, queue_size=10)
-        #self.predictions = BBoxPredictor() # class for holding predictions for ID'd bbox
         
         # Run the fuser at 20Hz
         while not rospy.is_shutdown():
@@ -36,39 +57,158 @@ class GlobalFuser():
             self.rate.sleep()
 
     def fuserRun50ms(self, event=None):
+
+        ids_updated = []
+        print(self.tracked_bboxes.keys())
+        # update tracker with ids recieved
+        for node in self.master_buffer.keys():
+            buffer_index = 0
+            if not self.indexes[node]:
+                buffer_index = 1
+            for bbox in self.master_buffer[node][buffer_index].boxes:
+
+                # TEST CODE
+                # if bbox.value == 3.0 and node == 'node2':
+                #     bbox.value = 5.0
+
+
+                if str(bbox.value) in self.tracked_bboxes.keys():
+                    id_key = str(bbox.value)
+                    if abs(self.tracked_bboxes[id_key]['latest_bbox'].dimensions.x - bbox.dimensions.x)>TOL:
+                        self.tracked_bboxes[id_key]['timesteps_missed'] = 0
+                        self.tracked_bboxes[id_key]['latest_bbox'].pose = bbox.pose
+                        self.tracked_bboxes[id_key]['latest_bbox'].header = bbox.header
+                        self.tracked_bboxes[id_key]['latest_bbox'].value = float(id_key)
+                    else:
+                        self.tracked_bboxes[id_key]['timesteps_missed'] = 0
+                        self.tracked_bboxes[id_key]['latest_bbox'] = bbox
+                    bbox_pos = [bbox.pose.position.x,
+                                bbox.pose.position.y,
+                                bbox.pose.position.z]
+                    self.tracked_bboxes[id_key]['kf'].update(bbox_pos)
+                    ids_updated.append(id_key)
+                    continue
+
+                # we dont recognize this bbox check all predictions first
+                found_match = False
+                min_gate_value = 10000000000000000
+                for id in self.tracked_bboxes.keys():
+                    if str(bbox.value) in self.tracked_bboxes[id]['equal_ids']:
+                        print("equal id")
+                        if abs(self.tracked_bboxes[id]['latest_bbox'].dimensions.x - bbox.dimensions.x)>TOL:
+                            self.tracked_bboxes[id]['timesteps_missed'] = 0
+                            self.tracked_bboxes[id]['latest_bbox'].pose = bbox.pose
+                            self.tracked_bboxes[id]['latest_bbox'].header = bbox.header
+                            self.tracked_bboxes[id]['latest_bbox'].value = float(id)
+                        else:
+                            self.tracked_bboxes[id]['timesteps_missed'] = 0
+                            self.tracked_bboxes[id]['latest_bbox'] = bbox
+                        bbox_pos = [bbox.pose.position.x,
+                                    bbox.pose.position.y,
+                                    bbox.pose.position.z]
+                        self.tracked_bboxes[id]['kf'].update(bbox_pos)
+                        ids_updated.append(id)
+                        found_match = True
+                        break
+
+                    # gating try
+                    predicted_pos = self.tracked_bboxes[id]['kf'].get_posn()
+                    id_residual = [0, 0, 0]
+                    id_residual[0] = bbox.pose.position.x - predicted_pos[0]
+                    id_residual[1] = bbox.pose.position.y - predicted_pos[1]
+                    id_residual[2] = bbox.pose.position.z - predicted_pos[2]
+                    id_residual_np = np.array(id_residual)
+
+                    s_temp = np.dot(BBoxPredictor.measuremnt_model, self.tracked_bboxes[id]['kf'].kf.P)
+                    S = np.dot(s_temp, np.transpose(BBoxPredictor.measuremnt_model))+self.tracked_bboxes[id]['kf'].kf.R
+                    S_inv = np.linalg.inv(S)
+                    gate_value = np.dot(np.dot(np.transpose(id_residual_np), S_inv), id_residual_np)
+                    
+                    if gate_value < min_gate_value:
+                        min_gate_value = gate_value
+                    
+                    print(gate_value, id, bbox.value)
+                    if gate_value < BBoxPredictor.gate_value:
+                        print("Found Match")
+                        print(gate_value, id, bbox.value)
+                        # we have seen this ID, update it with latest bbox and kf
+                        self.tracked_bboxes[id]['timesteps_missed'] = 0
+                        self.tracked_bboxes[id]['equal_ids'].append(str(bbox.value))
+                        if abs(self.tracked_bboxes[id]['latest_bbox'].dimensions.x - bbox.dimensions.x)>TOL:
+                            self.tracked_bboxes[id]['timesteps_missed'] = 0
+                            self.tracked_bboxes[id]['latest_bbox'].pose = bbox.pose
+                            self.tracked_bboxes[id]['latest_bbox'].header = bbox.header
+                        else:
+                            self.tracked_bboxes[id]['latest_bbox'] = bbox
+                        self.tracked_bboxes[id]['latest_bbox'].value = float(id)
+                        bbox_pos = [bbox.pose.position.x,
+                                    bbox.pose.position.y,
+                                    bbox.pose.position.z]
+                        self.tracked_bboxes[id]['kf'].update(bbox_pos)
+                        ids_updated.append(id)
+                        found_match = True
+                    
+                
+                if not found_match and min_gate_value > BBoxPredictor.new_track_threshold:
+                    # its a new id to add to the tracker
+                    id_key = str(bbox.value)
+                    print("new id to tracker id: " + id_key)
+                    self.tracked_bboxes[id_key] = {}
+                    self.tracked_bboxes[id_key]['timesteps_missed'] = 0
+                    self.tracked_bboxes[id_key]['equal_ids'] = []
+                    self.tracked_bboxes[id_key]['latest_bbox'] = bbox
+                    bbox_pos = [bbox.pose.position.x,
+                                0,
+                                bbox.pose.position.y,
+                                0,
+                                bbox.pose.position.z,
+                                0]
+                    self.tracked_bboxes[id_key]['kf'] = BBoxPredictor(bbox_pos)
+                    ids_updated.append(id_key)
+
+        # check all the ids not updated, update with prediction instead
+        ids_not_updated = list(set(self.tracked_bboxes.keys()) - set(ids_updated))
+        for id in ids_not_updated:
+            self.tracked_bboxes[id]['timesteps_missed'] += 1
+            if self.tracked_bboxes[id]['timesteps_missed'] > TIME_THRESHOLD:
+                # bbox has been gone too long delete it from tracker
+                print("deleting id " + str(id))
+                del self.tracked_bboxes[id]
+            else:
+                # else update its prediction for now
+                self.tracked_bboxes[id]['kf'].predict()
+                # predicted_pos = self.tracked_bboxes[id]['kf'].get_posn() 
+                # self.tracked_bboxes[id]['latest_bbox'].pose.position.x = predicted_pos[0]
+                # self.tracked_bboxes[id]['latest_bbox'].pose.position.y = predicted_pos[1]
+                # self.tracked_bboxes[id]['latest_bbox'].pose.position.z = predicted_pos[2]
+            
+        # at this point everything left in tracker should have its latest bbox published
         fused_buffer = BoundingBoxArray()
-        fused_buffer.header.stamp = rospy.Time.now()
-        fused_buffer.header.frame_id = 'lidar/node1_lidar'
+        fused_buffer.header.frame_id = 'map'
+        for id in self.tracked_bboxes.keys():
+            fused_buffer.boxes.append(self.tracked_bboxes[id]['latest_bbox'])
+        
+        self.pub.publish(fused_buffer)
 
-        if (len(self.master_buffer.node1_buffer)>0):
-            for bbox_buffer in [self.master_buffer.node1_buffer, self.master_buffer.node2_buffer, self.master_buffer.node3_buffer]:
-                for bbox in bbox_buffer[0].boxes:
-                    box_already_there = False   
-                    if len(fused_buffer.boxes) == 0:
-                        fused_buffer.boxes.append(bbox)
-                    for compare_box in fused_buffer.boxes:
-                        diff_x = abs(bbox.pose.position.x - compare_box.pose.position.x)
-                        diff_y = abs(bbox.pose.position.y - compare_box.pose.position.y)
-                        diff_z = abs(bbox.pose.position.z - compare_box.pose.position.z)
-                        if diff_x < POSITION_TOLERANCE and diff_y < POSITION_TOLERANCE and diff_z < POSITION_TOLERANCE:
-                            box_already_there = True
-                            break
-                    if not box_already_there:
-                        fused_buffer.boxes.append(bbox)
+        self.master_buffer['node1'][buffer_index].boxes = []
+        self.master_buffer['node2'][buffer_index].boxes = []
 
 
-            self.pub.publish(fused_buffer)
-            self.master_buffer.node1_buffer = []
-            self.master_buffer.node2_buffer = []
-            self.master_buffer.node3_buffer = []
+    def node1Callback(self, data):
+        # Add all bboxes to raw buffer
+        buffer_index = self.indexes['node1']
+        self.master_buffer['node1'][buffer_index].header = data.header
+        self.master_buffer['node1'][buffer_index].boxes = data.boxes
 
+        self.indexes['node1'] = (self.indexes['node1'] + 1) %2
 
-    def nodeCallback(self, data_n1, data_n2, data_n3):
-        # create new bbox to put in global buffer
-        self.master_buffer.node1_buffer.append(data_n1)
-        self.master_buffer.node2_buffer.append(data_n2)
-        self.master_buffer.node3_buffer.append(data_n3)
-        # self.fuserRun50ms(data_n1, data_n2, data_n3)
+    def node2Callback(self, data):
+        # Add all bboxes to raw buffer
+        buffer_index = self.indexes['node2']
+        self.master_buffer['node2'][buffer_index].header = data.header
+        self.master_buffer['node2'][buffer_index].boxes = data.boxes
+
+        self.indexes['node2'] = (self.indexes['node2'] + 1) %2
         
 
 if __name__ == '__main__':

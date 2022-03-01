@@ -3,8 +3,8 @@ import rospy
 import math
 from jsk_recognition_msgs.msg import BoundingBox, BoundingBoxArray
 
-write_bag = rosbag.Bag('/media/c66tang/Data/FYDP/bagfiles/EditedBag2.bag', 'w')
-read_bag = rosbag.Bag('/media/c66tang/Data/FYDP/bagfiles/2022-02-02-21-14-37.bag')
+write_bag = rosbag.Bag('/media/c66tang/Data/FYDP/bagfiles/EditedBag3.bag', 'w')
+read_bag = rosbag.Bag('/media/c66tang/Data/FYDP/bagfiles/carla_data.bag')
 
 good_topics = [           
     '/carla/camera/rgb/node1_camera_left/camera_info',              
@@ -78,11 +78,9 @@ for topic, msg, t in read_bag.read_messages(topics=good_topics):
                 publish_dict['node2'].boxes.append(node2_bbox)
                 continue
             if submsg.pose.position.y > divider_y:
-                publish_topic = 'node1/bounding_boxes'
-                dict_key = 'node1'
-            else:
-                publish_topic = 'node2/bounding_boxes'
                 dict_key = 'node2'
+            else:
+                dict_key = 'node1'
 
             node_bbox = BoundingBox()
             node_bbox.value = id
