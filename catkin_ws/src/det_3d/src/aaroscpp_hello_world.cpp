@@ -95,97 +95,85 @@ Box bbox_compute(pcl::PointCloud<pcl::PointXYZ>::Ptr& c, const int id){
 
 void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 {
+    // std::cout << "Cloud size original" << cloud_msg->height<<std::endl;
+    // std::cout << "Cloud size original" << cloud_msg->width<<std::endl;
 
     // 1. type conversion
-    pcl::PCLPointCloud2* cloud = new pcl::PCLPointCloud2;
-    pcl::PCLPointCloud2ConstPtr cloudPtr(cloud);
-    pcl::PCLPointCloud2 cloud_filtered;
-
-
-    pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::fromPCLPointCloud2(*cloudPtr,*temp_cloud);
-
-    // Convert to PCL data type
-    pcl_conversions::toPCL(*cloud_msg, *cloud);
-
-    // // 2. rotation
-    // // not yet implemented, talk to Neel about this - TODO
-    // // 3. ground plane filtering
+    pcl::PointCloud<pcl::PointXYZ> cloud;
+    pcl::fromROSMsg (*cloud_msg, cloud);
+    
+    // 3. ground plane filtering
 
     pcl::SACSegmentation<pcl::PointXYZ> seg;
     pcl::PointIndices::Ptr inliers{new pcl::PointIndices};
     pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
 
     seg.setOptimizeCoefficients(true);
-    seg.setModelType(pcl::SACMODEL_PLANE);
+    seg.setModelType(pcl::SACMODEL_PARALLEL_PLANE);
     seg.setMethodType(pcl::SAC_RANSAC);
-    seg.setMaxIterations(100); // setting max iterations of RANSAC to 30
-    seg.setDistanceThreshold(0.01); // setting ground threshold
+    seg.setMaxIterations(1000); // setting max iterations of RANSAC to 30
+    seg.setAxis(Eigen::Vector3f (0.0, 0.0, 1.0));
+    seg.setDistanceThreshold(0.2); // setting ground threshold
+
 
     // Segment the largest planar component from the input cloud
-    seg.setInputCloud(temp_cloud);
+    seg.setInputCloud(cloud.makeShared());
+    // std::cout << "Cloud size" << cloud.size()<<std::endl;
     seg.segment(*inliers, *coefficients);
     if (inliers->indices.empty())
     {
-    std::cout << "Could not estimate a planar model for the given dataset." << std::endl;
+      std::cout << "Could not estimate a planar model for the given dataset." << std::endl;
     }
 
-    // // now removing the ground plane from pointcloud
-    //
-    pcl::PCLPointCloud2Ptr obstacle_cloud(new pcl::PCLPointCloud2);
-    pcl::PCLPointCloud2Ptr ground_cloud(new pcl::PCLPointCloud2);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr obstacle_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr ground_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
-    // pcl::PointCloud<pcl::PointXYdZ>::Ptr ground_cloud(new pcl::PointCloud<pcl::PointXYZ>);
     //
     for (int idx : inliers->indices){
-        ground_cloud->data.push_back(cloudPtr->data[idx]);
+        ground_cloud->points.push_back(cloud.points[idx]);
     }
-    //
-    pcl::ExtractIndices<pcl::PCLPointCloud2> extract;
-    extract.setInputCloud(cloudPtr);
+
+    pcl::ExtractIndices<pcl::PointXYZ> extract;
+    extract.setInputCloud(cloud.makeShared());
     extract.setIndices(inliers);
     extract.setNegative(true);
     extract.filter(*obstacle_cloud);
-    // // end of ground plane filtering, obstacle_cloud is Ptr for next section, contains above ground plane points only
-    pcl::PointCloud<pcl::PointXYZ> above_ground_xyz;
-    pcl::fromPCLPointCloud2(*obstacle_cloud, above_ground_xyz);
-    sensor_msgs::PointCloud2 above_ground_pc;
-    pcl::toROSMsg(above_ground_xyz, above_ground_pc);
-    pub_above_ground.publish(above_ground_pc);
-    // // 4. voxel downsampling
+    pub_above_ground.publish(obstacle_cloud);
+
+    // 4. voxel downsampling
 
 
+    float filter_res = 0.08; // can change this after NEEDS TUNED
+    pcl::PointCloud<pcl::PointXYZ> vox_cloud;
 
-
-    float filter_res = 0.02; // can change this after
-    pcl::PCLPointCloud2Ptr voxelized_ptr(new pcl::PCLPointCloud2);
-
-    pcl::VoxelGrid<pcl::PCLPointCloud2> vg;
+    pcl::VoxelGrid<pcl::PointXYZ> vg;
     vg.setInputCloud(obstacle_cloud);
     vg.setLeafSize(filter_res, filter_res, filter_res);
-    vg.filter(*voxelized_ptr);
+    vg.filter(vox_cloud);
 
-    // end of voxel downsampling, voxelized_ptr is Ptr for next section.
+    // std::cout << "Cloud size" << vox_cloud.size()<<std::endl;
+
+    // end of voxel downsampling
 
     // 5. clustering
 
-    const float cluster_tolerance = 0.6;
-    const int min_size = 5000;
-    const int max_size = 10;
-    //
-    std::vector<pcl::PCLPointCloud2Ptr> clusters_pc2;
+    const float cluster_tolerance = 4.;
+    const int min_size = 100;
+    const int max_size = 5000;
+    
+
     std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> clusters_xyz;
 
-    // // euclidean clustering to group detected obstacles
-
-    // convert to xyz to feed into kdtree
-
-    pcl::PointCloud<pcl::PointXYZ> *voxelized_xyz = new pcl::PointCloud<pcl::PointXYZ>;
-    pcl::PointCloud<pcl::PointXYZ>::Ptr voxelized_xyz_ptr (voxelized_xyz);
-    pcl::fromPCLPointCloud2(*voxelized_ptr, *voxelized_xyz_ptr);
+    // euclidean clustering to group detected obstacles
 
     pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
-    tree->setInputCloud(voxelized_xyz_ptr);
+
+    pcl::PointCloud<pcl::PointXYZ> vox_cloud_filtered;
+    std::vector<int> indices;
+    pcl::removeNaNFromPointCloud(vox_cloud, vox_cloud_filtered, indices);
+    std::cout << "size: " << vox_cloud_filtered.points.size () << std::endl;
+
+    tree->setInputCloud(vox_cloud_filtered.makeShared());
 
     std::vector<pcl::PointIndices> cluster_indices;
     pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
@@ -193,16 +181,17 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     ec.setMinClusterSize(min_size);
     ec.setMaxClusterSize(max_size);
     ec.setSearchMethod(tree);
-    ec.setInputCloud(voxelized_xyz_ptr);
+    ec.setInputCloud(vox_cloud_filtered.makeShared());
     ec.extract(cluster_indices);
     //
     // TODO should this processing below be PointXYZ or PCLPointCloud2 ?
     for (auto& getIndices : cluster_indices)
     {
+         // std::cout << "HEREREEE" << std::endl;
         pcl::PointCloud<pcl::PointXYZ>::Ptr cluster(new pcl::PointCloud<pcl::PointXYZ>);
 
         for (auto& index : getIndices.indices){
-            cluster->points.push_back(voxelized_xyz_ptr->points[index]);
+            cluster->points.push_back(vox_cloud.points[index]);
         }
 
         cluster->width = cluster->points.size();
@@ -211,6 +200,7 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 
         clusters_xyz.push_back(cluster);
     }
+
     // converting clusters to autoware messages
 
     std::size_t obstacle_id_ = (obstacle_id_ < SIZE_MAX)? ++obstacle_id_ : 0;
@@ -236,8 +226,8 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     }
 
     pub_autoware_objects.publish(autoware_objects);
-    // // can also simulateneously publish jsk_recognition_msgs
-    // // end of clustering, all object clusters stored in clusters array
+    // can also simulateneously publish jsk_recognition_msgs
+    // end of clustering, all object clusters stored in clusters array
 }
 
 int main (int argc, char** argv)
@@ -247,7 +237,7 @@ int main (int argc, char** argv)
   ros::Subscriber sub = nh.subscribe ("/rslidar_points_front/ground_aligned", 1, cloud_cb);
   // pub = nh.advertise<sensor_msgs::PointCloud2> ("/autoware_bboxes", 1);
   pub_autoware_objects = nh.advertise<autoware_msgs::DetectedObjectArray>("/detection/lidar_objects", 1);
-  pub_above_ground = nh.advertise<sensor_msgs::PointCloud2>("/above_ground", 1);
+  pub_above_ground = nh.advertise<pcl::PointCloud<pcl::PointXYZRGB>>("/above_ground", 1);
   ros::spin();
 }
 
