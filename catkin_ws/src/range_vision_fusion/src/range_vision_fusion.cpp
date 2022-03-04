@@ -482,6 +482,28 @@ ROSRangeVisionFusionApp::SyncedDetectionsCallback(
   vision_detections_ = nullptr;
   range_detections_ = nullptr;
 
+  // for jsk recognition msgs
+  jsk_recognition_msgs::BoundingBoxArray bbox_array;
+  ros::Time t = ros::Time::now();
+  bbox_array.header.frame_id = "sdf";
+  bbox_array.header.stamp = t;
+  bbox_array.header.seq = 0;
+  printf("cluster size:%d\n", int(fusion_objects.objects.size()));
+  for(int i=0;i<int(fusion_objects.objects.size());i++)
+  {
+
+      jsk_recognition_msgs::BoundingBox bbox;
+      bbox.header.frame_id = "sdf";
+      bbox.header.stamp = t;
+      bbox.header.seq = 0;
+      bbox.pose = fusion_objects.objects[i].pose;
+      bbox.dimensions = fusion_objects.objects[i].dimensions;
+
+      bbox_array.boxes.push_back(bbox);
+  }
+
+  publisher_fused_objects_.publish(bbox_array);
+
 }
 
 void
@@ -685,6 +707,7 @@ ROSRangeVisionFusionApp::InitializeROSIo(ros::NodeHandle &in_private_handle)
 
   ROS_INFO("[%s] Publishing fused objects in %s", __APP_NAME__, fused_topic_str.c_str());
 
+  publisher_fused_objects_ = node_handle_.advertise<jsk_recognition_msgs::BoundingBoxArray>("/detection/fusion_tools/objects_jsk", 1);
 }
 
 

@@ -31,7 +31,6 @@
 #include <geometry_msgs/TransformStamped.h>
 #include "shape_msgs/SolidPrimitive.h"
 #include "visualization_msgs/Marker.h"
-#include <tf2_sensor_msgs/tf2_sensor_msgs.h>
 
 #include <autoware_msgs/DetectedObject.h>
 #include <autoware_msgs/DetectedObjectArray.h>

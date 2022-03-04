@@ -13,12 +13,12 @@ find_package(catkin REQUIRED COMPONENTS
     cv_bridge
     image_transport
     message_generation
-    tf2
-    tf2_ros
-    tf2_msgs
-    tf2_sensor_msgs
-    tf2_geometry_msgs
 )
+
+find_package(PCL 1.8 REQUIRED)
+set(PCL_INCLUDE_DIRS /usr/local/include/pcl-1.8) 
+message("PCL_LIBRARIES - ${PCL_LIBRARIES}")
+message("CHECKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK")
 
 catkin_package(
   INCLUDE_DIRS include
@@ -30,16 +30,29 @@ catkin_package(
 
 #  DEPENDS other non-ROS libs
 )
+include_directories(${PCL_INCLUDE_DIRS})
+
+
 
 include_directories(
   include
   ${catkin_INCLUDE_DIRS}
 )
 
+link_directories(${PCL_LIBRARY_DIRS})
+add_definitions(${PCL_DEFINITIONS})
+
 add_library(${PROJECT_NAME}
   src/aaroscpp_pcl_example.cpp
 )
-target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
+
+
+
+add_executable(aaroscpp_hello_world src/aaroscpp_hello_world.cpp)
+target_link_libraries (aaroscpp_hello_world ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+# target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
+# target_link_libraries(aaroscpp_pcl_example ${catkin_LIBRARIES})
+# add_dependencies(aaroscpp_pcl_example aaroscpp_pcl_example)
 
 install(
   TARGETS ${PROJECT_NAME}
