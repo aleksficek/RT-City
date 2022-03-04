@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+
+<!--
+''' 
+    Purpose: Publish Static Transforms For Frames {L}, {G}, {UTM}, and {B}
+    Subscribed topics: None
+    Pulished topic: None
+
+    Project: WATonoBus
+    Author: Neel Bhatt
+    Date: Feb 26, 2022
+    Do not share, copy, or use without seeking permission from the author
+'''
+-->
+
+<launch>
+
+	<param name="use_sim_time" value="true"/>
+
+    <!--Publish Ground Aligned Frame to Sensor Node LIDAR Frame Static Transform - Feb2022-->
+    <node pkg="tf" type="static_transform_publisher" name="ground_aligned_tf_broadcaster" args="0 0 0 0.0 -0.9599310885968813 0.014835298641951801 rslidar_front ground_aligned 50" />
+
+    <!--Publish Bus LIDAR Frame to Sensor Node LIDAR Frame Static Transform - Feb2022-->
+    <node pkg="tf" type="static_transform_publisher" name="bus_lidar_tf_broadcaster" args="0 0 0 1.5707963267948966 -5.015859645267624e-17 -0.9599310885968813 rslidar_front bus_lidar 50" />
+
+    <!--Publish Sensor Node LIDAR Frame to Map Frame Static Transform - Feb2022-->
+    <node pkg="tf" type="static_transform_publisher" name="map_tf_broadcaster" args="-390.5250848851185 597.3641594483225 12.239965292822628 2.079674982771046 0.9599310888352706 -2.1902655783181404e-16 map rslidar_front 50" />
+
+</launch>
