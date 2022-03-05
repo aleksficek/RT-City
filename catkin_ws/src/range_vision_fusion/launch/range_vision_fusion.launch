@@ -20,6 +20,9 @@
     <param name="overlap_threshold" value="$(arg overlap_threshold)"/>
   </node>
 
+  <!--Publish Static Transform-->
+  <node pkg="tf" type="static_transform_publisher" name="right_cam_tf_broadcaster" args="-0.05 -0.05 -0.045 0.901462558655 0.0 1.5777776438 rslidar_front right_cam 50" />
+
   <group if="$(arg use_vector_map)">
     <node name="object_roi_filter_range_fusion" pkg="roi_object_filter" type="roi_object_filter"
           output="screen" ns="$(arg namespace)">

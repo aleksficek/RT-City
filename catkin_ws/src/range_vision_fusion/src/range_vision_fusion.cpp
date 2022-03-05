@@ -626,7 +626,8 @@ ROSRangeVisionFusionApp::FindTransform(const std::string &in_target_frame, const
   camera_lidar_tf_ok_ = false;
   try
   {
-    transform_listener_->lookupTransform(in_target_frame, in_source_frame, ros::Time(0), transform);
+    // transform_listener_->lookupTransform(in_target_frame, in_source_frame, ros::Time(0), transform);
+    transform_listener_->lookupTransform(in_source_frame, in_source_frame, ros::Time(0), transform);
     camera_lidar_tf_ok_ = true;
     ROS_INFO("[%s] Camera-Lidar TF obtained", __APP_NAME__);
   }
