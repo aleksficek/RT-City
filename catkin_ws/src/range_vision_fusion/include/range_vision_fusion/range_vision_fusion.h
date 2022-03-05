@@ -59,6 +59,7 @@ class ROSRangeVisionFusionApp
 {
   ros::NodeHandle node_handle_;
   ros::Publisher publisher_fused_objects_;
+  ros::Publisher publisher_fused_objects_jsk;
 
   ros::Subscriber intrinsics_subscriber_;
   ros::Subscriber detections_vision_subscriber_;
@@ -153,6 +154,7 @@ class ROSRangeVisionFusionApp
   FindTransform(const std::string &in_target_frame, const std::string &in_source_frame);
 
   void IntrinsicsCallback(const sensor_msgs::CameraInfo &in_message);
+  void IntrinsicsHardCode();
 
   /*!
    * Reads the config params from the command line

@@ -429,6 +429,7 @@ ROSRangeVisionFusionApp::SyncedDetectionsCallback(
   const autoware_msgs::DetectedObjectArray::ConstPtr &in_vision_detections,
   const autoware_msgs::DetectedObjectArray::ConstPtr &in_range_detections)
 {
+  ROS_INFO("----- SyncedDetectionsCallback -----");
   autoware_msgs::DetectedObjectArray fusion_objects;
   fusion_objects.objects.clear();
 
@@ -476,6 +477,7 @@ ROSRangeVisionFusionApp::SyncedDetectionsCallback(
 
   fusion_objects = FuseRangeVisionDetections(in_vision_detections, in_range_detections);
 
+  ROS_INFO("PUBLISHING FUSED OBJECTS ----------");
   publisher_fused_objects_.publish(fusion_objects);
   empty_frames_ = 0;
 
@@ -510,6 +512,7 @@ void
 ROSRangeVisionFusionApp::VisionDetectionsCallback(
   const autoware_msgs::DetectedObjectArray::ConstPtr &in_vision_detections)
 {
+  ROS_INFO("----- VisionDetectionsCallback -----");
   if (!processing_ && !in_vision_detections->objects.empty())
   {
     processing_ = true;
@@ -523,6 +526,7 @@ void
 ROSRangeVisionFusionApp::RangeDetectionsCallback(
   const autoware_msgs::DetectedObjectArray::ConstPtr &in_range_detections)
 {
+  ROS_INFO("----- RangeDetectionsCallback -----");
   if (!processing_ && !in_range_detections->objects.empty())
   {
     processing_ = true;
@@ -534,6 +538,7 @@ ROSRangeVisionFusionApp::RangeDetectionsCallback(
 
 void ROSRangeVisionFusionApp::ImageCallback(const sensor_msgs::Image::ConstPtr &in_image_msg)
 {
+  ROS_INFO("----- ImageCallback -----");
   if (!camera_info_ok_)
     return;
   cv_bridge::CvImagePtr cv_image = cv_bridge::toCvCopy(in_image_msg, "bgr8");
@@ -546,6 +551,8 @@ void ROSRangeVisionFusionApp::ImageCallback(const sensor_msgs::Image::ConstPtr &
 void
 ROSRangeVisionFusionApp::IntrinsicsCallback(const sensor_msgs::CameraInfo &in_message)
 {
+  ROS_INFO("----- IntrinsicsCallback -----");
+  // Set camera input
   image_size_.height = in_message.height;
   image_size_.width = in_message.width;
 
@@ -572,6 +579,41 @@ ROSRangeVisionFusionApp::IntrinsicsCallback(const sensor_msgs::CameraInfo &in_me
   intrinsics_subscriber_.shutdown();
   camera_info_ok_ = true;
   image_frame_id_ = in_message.header.frame_id;
+  ROS_INFO("[%s] CameraIntrinsics obtained.", __APP_NAME__);
+}
+
+void
+ROSRangeVisionFusionApp::IntrinsicsHardCode()
+{
+  // Set camera input, replace in_message
+  image_size_.height = 1920;
+  image_size_.width = 480;
+
+  camera_instrinsics_ = cv::Mat(3, 3, CV_64F);
+  camera_instrinsics_.at<double>(0, 0) = 1136.90635;
+  camera_instrinsics_.at<double>(0, 1) = 0;
+  camera_instrinsics_.at<double>(0, 2) = 1002.53608;
+  camera_instrinsics_.at<double>(1, 0) = 0;
+  camera_instrinsics_.at<double>(1, 1) = 1133.96809;
+  camera_instrinsics_.at<double>(1, 2) = 618.03871;
+  camera_instrinsics_.at<double>(1, 0) = 0;
+  camera_instrinsics_.at<double>(1, 1) = 0;
+  camera_instrinsics_.at<double>(1, 2) = 1;
+
+  distortion_coefficients_ = cv::Mat(1, 5, CV_64F);
+  distortion_coefficients_.at<double>(0) = -0.283258;
+  distortion_coefficients_.at<double>(1) = 0.082323;
+  distortion_coefficients_.at<double>(2) = -0.000062;
+  distortion_coefficients_.at<double>(3) = -0.000432;
+  distortion_coefficients_.at<double>(4) =  0.000000;
+
+  fx_ = static_cast<float>(889.7312);
+  fy_ = static_cast<float>(1036.09668);
+  cx_ = static_cast<float>(1016.02049);
+  cy_ = static_cast<float>(621.56879);
+
+  camera_info_ok_ = true;
+  // image_frame_id_ = in_message.header.frame_id;
   ROS_INFO("[%s] CameraIntrinsics obtained.", __APP_NAME__);
 }
 
@@ -609,11 +651,11 @@ ROSRangeVisionFusionApp::InitializeROSIo(ros::NodeHandle &in_private_handle)
     "[%s] This node requires: Registered TF(Lidar-Camera), CameraInfo, Vision and Range Detections being published.",
     __APP_NAME__);
   in_private_handle.param<std::string>("detected_objects_range", detected_objects_range,
-                                       "/detection/lidar_detector/objects");
+                                       "/detection/lidar_objects");
   ROS_INFO("[%s] detected_objects_range: %s", __APP_NAME__, detected_objects_range.c_str());
 
   in_private_handle.param<std::string>("detected_objects_vision", detected_objects_vision,
-                                       "/detection/image_detector/objects");
+                                       "/detection/vision_objects");
   ROS_INFO("[%s] detected_objects_vision: %s", __APP_NAME__, detected_objects_vision.c_str());
 
   in_private_handle.param<std::string>("camera_info_src", camera_info_src, "/camera_info");
@@ -668,13 +710,17 @@ ROSRangeVisionFusionApp::InitializeROSIo(ros::NodeHandle &in_private_handle)
   }
 
   //generate subscribers and sychronizers
-  ROS_INFO("[%s] Subscribing to... %s", __APP_NAME__, camera_info_src.c_str());
-  intrinsics_subscriber_ = in_private_handle.subscribe(camera_info_src,
-                                                       1,
-                                                       &ROSRangeVisionFusionApp::IntrinsicsCallback, this);
+  // ROS_INFO("[%s] Subscribing to... %s", __APP_NAME__, camera_info_src.c_str());
+  // intrinsics_subscriber_ = in_private_handle.subscribe(camera_info_src,
+  //                                                      1,
+  //                                                      &ROSRangeVisionFusionApp::IntrinsicsCallback, this);
 
-  ROS_INFO("[%s] Subscribing to... %s", __APP_NAME__, detected_objects_vision.c_str());
+  ROS_INFO("Hardcoding intrinsics");
+  ROSRangeVisionFusionApp::IntrinsicsHardCode();
+  ROS_INFO("Intrinsics complete");
+
   ROS_INFO("[%s] Subscribing to... %s", __APP_NAME__, detected_objects_range.c_str());
+  ROS_INFO("[%s] Subscribing to... %s", __APP_NAME__, detected_objects_vision.c_str());
   if (!sync_topics)
   {
     detections_range_subscriber_ = in_private_handle.subscribe(detected_objects_vision,
@@ -707,7 +753,7 @@ ROSRangeVisionFusionApp::InitializeROSIo(ros::NodeHandle &in_private_handle)
 
   ROS_INFO("[%s] Publishing fused objects in %s", __APP_NAME__, fused_topic_str.c_str());
 
-  publisher_fused_objects_ = node_handle_.advertise<jsk_recognition_msgs::BoundingBoxArray>("/detection/fusion_tools/objects_jsk", 1);
+  publisher_fused_objects_jsk = node_handle_.advertise<jsk_recognition_msgs::BoundingBoxArray>("/detection/fusion_tools/objects_jsk", 1);
 }
 
 
@@ -731,7 +777,7 @@ ROSRangeVisionFusionApp::Run()
 ROSRangeVisionFusionApp::ROSRangeVisionFusionApp()
 {
   camera_lidar_tf_ok_ = false;
-  camera_info_ok_ = false;
+  camera_info_ok_ = true;
   processing_ = false;
   image_frame_id_ = "";
   overlap_threshold_ = 0.5;
