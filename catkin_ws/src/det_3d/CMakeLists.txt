@@ -16,9 +16,8 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 find_package(PCL 1.8 REQUIRED)
-set(PCL_INCLUDE_DIRS /usr/local/include/pcl-1.8) 
+set(PCL_INCLUDE_DIRS /usr/local/include/pcl-1.8)
 message("PCL_LIBRARIES - ${PCL_LIBRARIES}")
-message("CHECKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK")
 
 catkin_package(
   INCLUDE_DIRS include
@@ -48,8 +47,8 @@ add_library(${PROJECT_NAME}
 
 
 
-add_executable(aaroscpp_hello_world src/aaroscpp_hello_world.cpp)
-target_link_libraries (aaroscpp_hello_world ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+add_executable(detection_node src/detection_node.cpp)
+target_link_libraries (detection_node ${catkin_LIBRARIES} ${PCL_LIBRARIES})
 # target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
 # target_link_libraries(aaroscpp_pcl_example ${catkin_LIBRARIES})
 # add_dependencies(aaroscpp_pcl_example aaroscpp_pcl_example)

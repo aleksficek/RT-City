@@ -36,7 +36,7 @@
 #include <autoware_msgs/DetectedObjectArray.h>
 //
 
-#include "det_3d/aaroscpp_pcl_example.h"
+#include "det_3d/detection_node.h"
 
 ros::Publisher pub_autoware_objects;
 ros::Publisher pub_above_ground;
@@ -228,7 +228,7 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
         autoware_object.dimensions.z = temp.dimension(2);
         autoware_object.valid = true;
         autoware_objects.objects.emplace_back(autoware_object);
-        // TODO walk through ptr/PCL data types again carefully ensure output is correct format
+
     }
 
     pub_autoware_objects.publish(autoware_objects);
@@ -246,26 +246,3 @@ int main (int argc, char** argv)
   pub_above_ground = nh.advertise<sensor_msgs::PointCloud2>("/above_ground", 1);
   ros::spin();
 }
-
-
-/*
-TODO
-- do we need to change queue sizes if working with big pointclouds with lots of processing going on
-
-- make another publisher that outputs only non-ground points (obstacle_clouds)
-- rotate incoming pointcloud (step 2) to get ground planes to align
-- somehow do the pose update for the autoware DetectedObject
-
-
-- - make another publisher that outputs jsk_recognition_msgs for viz
-
-*/
-
-
-// todo after neel's call
-// - sub to his rotated pointcloud and viz with jsk in rviz
-// - see how good bbox_compute is
-// - if bbox_compute not good, look at L-shape box fitting
-// - L shape fitting (ditch PCA)
-// - leave queue size to 1
-// -
