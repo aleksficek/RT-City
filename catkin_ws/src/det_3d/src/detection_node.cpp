@@ -157,9 +157,13 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     vg.filter(vox_cloud);
 
     pub_voxelized.publish(vox_cloud);
-    std::cout << "voxelized pc size: " << cloud_msg->height * cloud_msg->width << std::endl;
 
     // std::cout << "Cloud size" << vox_cloud.size()<<std::endl;
+    pcl::PointCloud<pcl::PointXYZ> vox_cloud_filtered;
+    std::vector<int> indices;
+    pcl::removeNaNFromPointCloud(vox_cloud, vox_cloud_filtered, indices);
+    std::cout << "voxelized pc size: " << vox_cloud_filtered.points.size () << std::endl;
+
 
     // 5. clustering
 
@@ -173,10 +177,6 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 
     pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
 
-    pcl::PointCloud<pcl::PointXYZ> vox_cloud_filtered;
-    std::vector<int> indices;
-    pcl::removeNaNFromPointCloud(vox_cloud, vox_cloud_filtered, indices);
-    std::cout << "voxelized size: " << vox_cloud_filtered.points.size () << std::endl;
 
     tree->setInputCloud(vox_cloud_filtered.makeShared());
 
@@ -217,7 +217,7 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 
     autoware_msgs::DetectedObjectArray autoware_objects;
     jsk_recognition_msgs::BoundingBoxArray jsk_bboxes;
-    // jsk_bboxes.header.stamp = ros::Time::now();
+    jsk_bboxes.header.stamp = ros::Time::now();
     //
     for (auto& cluster : clusters_xyz){
         Box temp = bbox_compute(cluster, obstacle_id_);
@@ -249,7 +249,7 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
         jsk_recognition_msgs::BoundingBox jsk_bbox;
         // jsk_bbox.header = header;
         // jsk_bbox.pose = pose_transformed;
-        // jsk_bbox.header.stamp = ros::Time::now();
+        jsk_bbox.header.stamp = ros::Time::now();
         jsk_bbox.dimensions.x = temp.dimension(0);
         jsk_bbox.dimensions.y = temp.dimension(1);
         jsk_bbox.dimensions.z = temp.dimension(2);
