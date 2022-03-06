@@ -216,33 +216,43 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     std::size_t obstacle_id_ = (obstacle_id_ < SIZE_MAX)? ++obstacle_id_ : 0;
 
     autoware_msgs::DetectedObjectArray autoware_objects;
+    autoware_objects.header.stamp = ros::Time::now();
+    autoware_objects.header.frame_id = "ground_aligned";
+
     jsk_recognition_msgs::BoundingBoxArray jsk_bboxes;
     jsk_bboxes.header.stamp = ros::Time::now();
-    //
+    jsk_bboxes.header.frame_id = "ground_aligned";
+
     for (auto& cluster : clusters_xyz){
         Box temp = bbox_compute(cluster, obstacle_id_);
 
         // autoware msg
         autoware_msgs::DetectedObject autoware_object; // if this gets manually deleted, will the ref for this bbox in the bbox_array also drop?
-        // autoware_object.header = ; // TODO
+
         autoware_object.id = temp.id;
         autoware_object.label = "unknown";
+        autoware_object.header.stamp = ros::Time::now();
+        autoware_object.header.frame_id = "ground_aligned";
+        autoware_object.pose_reliable = true;
+        autoware_object.valid = true;
         // autoware_object.score = 1.0f; // TODOt
         // autoware_object.pose = pose_transformed; TODO
-        autoware_object.pose_reliable = true;
-        autoware_object.dimensions.x = temp.dimension(0);
-        autoware_object.dimensions.y = temp.dimension(1);
-        autoware_object.dimensions.z = temp.dimension(2);
-        autoware_object.valid = true;
+
+        autoware_object.dimensions.x = temp.dimension.x();
+        autoware_object.dimensions.y = temp.dimension.y();
+        autoware_object.dimensions.z = temp.dimension.z();
+
         // autoware_object.pose.position = temp.position;
         autoware_object.pose.position.x = temp.position.x();
         autoware_object.pose.position.y = temp.position.y();
         autoware_object.pose.position.z = temp.position.z();
+
         // autoware_object.pose.orientation = temp.quaternion;
         autoware_object.pose.orientation.w = temp.quaternion.w();
         autoware_object.pose.orientation.x = temp.quaternion.x();
         autoware_object.pose.orientation.y = temp.quaternion.y();
         autoware_object.pose.orientation.z = temp.quaternion.z();
+
         autoware_objects.objects.emplace_back(autoware_object);
 
         // jsk msg
@@ -250,32 +260,36 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
         // jsk_bbox.header = header;
         // jsk_bbox.pose = pose_transformed;
         jsk_bbox.header.stamp = ros::Time::now();
-        jsk_bbox.dimensions.x = temp.dimension(0);
-        jsk_bbox.dimensions.y = temp.dimension(1);
-        jsk_bbox.dimensions.z = temp.dimension(2);
+        jsk_bbox.header.frame_id = "ground_aligned";
+        jsk_bbox.label = 123; // this is random, look into this
+        // jsk_bbox.value = 1.0f;
+
+        jsk_bbox.dimensions.x = temp.dimension.x();
+        jsk_bbox.dimensions.y = temp.dimension.y();
+        jsk_bbox.dimensions.z = temp.dimension.z();
+
         // jsk_bbox.pose.position = temp.position;
         jsk_bbox.pose.position.x = temp.position.x();
         jsk_bbox.pose.position.y = temp.position.y();
         jsk_bbox.pose.position.z = temp.position.z();
+
         // jsk_bbox.pose.orientation = temp.quaternion;
         jsk_bbox.pose.orientation.w = temp.quaternion.w();
         jsk_bbox.pose.orientation.x = temp.quaternion.x();
         jsk_bbox.pose.orientation.y = temp.quaternion.y();
         jsk_bbox.pose.orientation.z = temp.quaternion.z();
-        // jsk_bbox.value = 1.0f;
-        jsk_bbox.label = 123; // this is random, look into this
+
         jsk_bboxes.boxes.emplace_back(jsk_bbox);
     }
 
     pub_autoware_objects.publish(autoware_objects);
     pub_jsk_bboxes.publish(jsk_bboxes);
-    // can also simulateneously publish jsk_recognition_msgs
     // end of clustering, all object clusters stored in clusters array
 }
 
 int main (int argc, char** argv)
 {
-  ros::init (argc, argv, "my_pcl_tutorial");
+  ros::init (argc, argv, "lidar_detection");
   ros::NodeHandle nh;
   ros::Subscriber sub = nh.subscribe ("/rslidar_points_front/ground_aligned", 1, cloud_cb);
   // pub = nh.advertise<sensor_msgs::PointCloud2> ("/autoware_bboxes", 1);
