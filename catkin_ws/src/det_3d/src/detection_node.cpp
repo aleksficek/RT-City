@@ -144,11 +144,11 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     extract.filter(*obstacle_cloud);
     pub_above_ground.publish(obstacle_cloud);
     ground_filtered_num_pts = obstacle_cloud->size();
-    std::cout << "ground filtered pc size" << ground_filtered_num_pts << std::endl;
+    std::cout << "ground filtered pc size: " << ground_filtered_num_pts << std::endl;
 
     // 4. voxel downsampling
 
-    const float filter_res = 0.04;
+    const float filter_res = 0.08;
     pcl::PointCloud<pcl::PointXYZ> vox_cloud;
 
     pcl::VoxelGrid<pcl::PointXYZ> vg;
@@ -188,11 +188,16 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     ec.setSearchMethod(tree);
     ec.setInputCloud(vox_cloud_filtered.makeShared());
     ec.extract(cluster_indices);
-    //
-    // TODO should this processing below be PointXYZ or PCLPointCloud2 ?
+
+    if(cluster_indices.empty()){
+        std::cout << "CLUSTERING NOT HAPPENING" << std::endl;
+    }
+
+    std::cout << "CLUSTER INDICES SIZE (i.e. number of objects): " << cluster_indices.size() << std::endl;
+
     for (auto& getIndices : cluster_indices)
     {
-         // std::cout << "HEREREEE" << std::endl;
+
         pcl::PointCloud<pcl::PointXYZ>::Ptr cluster(new pcl::PointCloud<pcl::PointXYZ>);
 
         for (auto& index : getIndices.indices){
@@ -212,7 +217,7 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 
     autoware_msgs::DetectedObjectArray autoware_objects;
     jsk_recognition_msgs::BoundingBoxArray jsk_bboxes;
-    jsk_bboxes.header.stamp = ros::Time::now();
+    // jsk_bboxes.header.stamp = ros::Time::now();
     //
     for (auto& cluster : clusters_xyz){
         Box temp = bbox_compute(cluster, obstacle_id_);
@@ -229,17 +234,35 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
         autoware_object.dimensions.y = temp.dimension(1);
         autoware_object.dimensions.z = temp.dimension(2);
         autoware_object.valid = true;
+        // autoware_object.pose.position = temp.position;
+        autoware_object.pose.position.x = temp.position.x();
+        autoware_object.pose.position.y = temp.position.y();
+        autoware_object.pose.position.z = temp.position.z();
+        // autoware_object.pose.orientation = temp.quaternion;
+        autoware_object.pose.orientation.w = temp.quaternion.w();
+        autoware_object.pose.orientation.x = temp.quaternion.x();
+        autoware_object.pose.orientation.y = temp.quaternion.y();
+        autoware_object.pose.orientation.z = temp.quaternion.z();
         autoware_objects.objects.emplace_back(autoware_object);
 
         // jsk msg
         jsk_recognition_msgs::BoundingBox jsk_bbox;
         // jsk_bbox.header = header;
         // jsk_bbox.pose = pose_transformed;
-        jsk_bbox.header.stamp = ros::Time::now();
+        // jsk_bbox.header.stamp = ros::Time::now();
         jsk_bbox.dimensions.x = temp.dimension(0);
         jsk_bbox.dimensions.y = temp.dimension(1);
         jsk_bbox.dimensions.z = temp.dimension(2);
-        jsk_bbox.value = 1.0f;
+        // jsk_bbox.pose.position = temp.position;
+        jsk_bbox.pose.position.x = temp.position.x();
+        jsk_bbox.pose.position.y = temp.position.y();
+        jsk_bbox.pose.position.z = temp.position.z();
+        // jsk_bbox.pose.orientation = temp.quaternion;
+        jsk_bbox.pose.orientation.w = temp.quaternion.w();
+        jsk_bbox.pose.orientation.x = temp.quaternion.x();
+        jsk_bbox.pose.orientation.y = temp.quaternion.y();
+        jsk_bbox.pose.orientation.z = temp.quaternion.z();
+        // jsk_bbox.value = 1.0f;
         jsk_bbox.label = 123; // this is random, look into this
         jsk_bboxes.boxes.emplace_back(jsk_bbox);
     }
