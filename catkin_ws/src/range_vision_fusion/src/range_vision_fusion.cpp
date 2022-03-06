@@ -465,7 +465,7 @@ ROSRangeVisionFusionApp::SyncedDetectionsCallback(
   if (!camera_lidar_tf_ok_)
   {
     camera_lidar_tf_ = FindTransform(image_frame_id_,
-                                     in_range_detections->header.frame_id);
+                                     "rslidar_front");
   }
   if (
     !camera_lidar_tf_ok_ ||
@@ -613,7 +613,7 @@ ROSRangeVisionFusionApp::IntrinsicsHardCode()
   cy_ = static_cast<float>(621.56879);
 
   camera_info_ok_ = true;
-  // image_frame_id_ = in_message.header.frame_id;
+  image_frame_id_ = "right_cam";
   ROS_INFO("[%s] CameraIntrinsics obtained.", __APP_NAME__);
 }
 
@@ -627,7 +627,7 @@ ROSRangeVisionFusionApp::FindTransform(const std::string &in_target_frame, const
   try
   {
     // transform_listener_->lookupTransform(in_target_frame, in_source_frame, ros::Time(0), transform);
-    transform_listener_->lookupTransform(in_source_frame, in_source_frame, ros::Time(0), transform);
+    transform_listener_->lookupTransform(in_target_frame, in_source_frame, ros::Time(0), transform);
     camera_lidar_tf_ok_ = true;
     ROS_INFO("[%s] Camera-Lidar TF obtained", __APP_NAME__);
   }
