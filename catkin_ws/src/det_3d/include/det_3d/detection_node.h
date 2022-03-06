@@ -1,8 +1,5 @@
 #pragma once
 
-// #ifndef BOX_H
-// #define BOX_H
-
 #include <Eigen/Geometry>
 
 struct Box
@@ -25,10 +22,3 @@ struct Box
 		: id(id), position(position), dimension(dimension), quaternion(quaternion)
 	{}
 };
-
-// #pragma once
-//
-// struct RTCity
-// {
-//     int num;
-// }

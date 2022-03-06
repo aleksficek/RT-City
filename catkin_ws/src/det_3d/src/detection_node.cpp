@@ -3,7 +3,7 @@
 #include <math.h>
 #include <sstream>
 #include <vector>
-//
+
 // // ROS/PCL imports *************************************************************
 #include <ros/ros.h>
 #include <pcl/point_cloud.h>
@@ -34,13 +34,15 @@
 
 #include <autoware_msgs/DetectedObject.h>
 #include <autoware_msgs/DetectedObjectArray.h>
-//
+#include <jsk_recognition_msgs/BoundingBox.h>
+#include <jsk_recognition_msgs/BoundingBoxArray.h>
 
 #include "det_3d/detection_node.h"
 
 ros::Publisher pub_autoware_objects;
+ros::Publisher pub_jsk_bboxes;
 ros::Publisher pub_above_ground;
-
+ros::Publisher pub_voxelized;
 
 /*
 steps:
@@ -95,93 +97,88 @@ Box bbox_compute(pcl::PointCloud<pcl::PointXYZ>::Ptr& c, const int id){
 
 void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 {
+    // std::cout << "Cloud size original" << cloud_msg->height<<std::endl;
+    // std::cout << "Cloud size original" << cloud_msg->width<<std::endl;
+    size_t original_num_pts = 0, ground_filtered_num_pts = 0, voxelized_num_pts = 0;
+    const int ransac_iter = 150;
+    const float threshold = 0.03;
 
+    std::cout << "input pc size: " << cloud_msg->height * cloud_msg->width << std::endl;
     // 1. type conversion
-    pcl::PCLPointCloud2* cloud = new pcl::PCLPointCloud2;
-    pcl::PCLPointCloud2ConstPtr cloudPtr(cloud);
-    pcl::PCLPointCloud2 cloud_filtered;
+    pcl::PointCloud<pcl::PointXYZ> cloud;
+    pcl::fromROSMsg (*cloud_msg, cloud);
 
-    // Convert to PCL data type
-    pcl_conversions::toPCL(*cloud_msg, *cloud);
+    // 3. ground plane filtering
 
-    // // 2. rotation
-    // // not yet implemented, talk to Neel about this - TODO
-    // // 3. ground plane filtering
-
-    pcl::SACSegmentation<pcl::PCLPointCloud2> seg;
+    pcl::SACSegmentation<pcl::PointXYZ> seg;
     pcl::PointIndices::Ptr inliers{new pcl::PointIndices};
     pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
 
     seg.setOptimizeCoefficients(true);
-    seg.setModelType(pcl::SACMODEL_PLANE);
+    seg.setModelType(pcl::SACMODEL_PARALLEL_PLANE);
     seg.setMethodType(pcl::SAC_RANSAC);
-    seg.setMaxIterations(30); // setting max iterations of RANSAC to 30
-    seg.setDistanceThreshold(0.3); // setting ground threshold
+    seg.setMaxIterations(ransac_iter); // setting max iterations of RANSAC to 30
+    seg.setAxis(Eigen::Vector3f (0.0, 0.0, 1.0));
+    seg.setDistanceThreshold(0.2); // setting ground threshold
 
     // Segment the largest planar component from the input cloud
-    seg.setInputCloud(cloudPtr);
+    seg.setInputCloud(cloud.makeShared());
+    // std::cout << "Cloud size" << cloud.size()<<std::endl;
     seg.segment(*inliers, *coefficients);
     if (inliers->indices.empty())
     {
-    std::cout << "Could not estimate a planar model for the given dataset." << std::endl;
+      std::cout << "Could not estimate a planar model for the given dataset." << std::endl;
     }
 
-    // // now removing the ground plane from pointcloud
-    //
-    pcl::PCLPointCloud2Ptr obstacle_cloud(new pcl::PCLPointCloud2);
-    pcl::PCLPointCloud2Ptr ground_cloud(new pcl::PCLPointCloud2);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr obstacle_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr ground_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
-    // pcl::PointCloud<pcl::PointXYdZ>::Ptr ground_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-    //
     for (int idx : inliers->indices){
-        ground_cloud->data.push_back(cloudPtr->data[idx]);
+        ground_cloud->points.push_back(cloud.points[idx]);
     }
-    //
-    pcl::ExtractIndices<pcl::PCLPointCloud2> extract;
-    extract.setInputCloud(cloudPtr);
+
+    pcl::ExtractIndices<pcl::PointXYZ> extract;
+    extract.setInputCloud(cloud.makeShared());
     extract.setIndices(inliers);
     extract.setNegative(true);
     extract.filter(*obstacle_cloud);
-    // // end of ground plane filtering, obstacle_cloud is Ptr for next section, contains above ground plane points only
-    pcl::PointCloud<pcl::PointXYZ> above_ground_xyz;
-    pcl::fromPCLPointCloud2(*obstacle_cloud, above_ground_xyz);
-    sensor_msgs::PointCloud2 above_ground_pc;
-    pcl::toROSMsg(above_ground_xyz, above_ground_pc);
-    pub_above_ground.publish(above_ground_pc);
-    // // 4. voxel downsampling
+    pub_above_ground.publish(obstacle_cloud);
+    ground_filtered_num_pts = obstacle_cloud->size();
+    std::cout << "ground filtered pc size: " << ground_filtered_num_pts << std::endl;
 
+    // 4. voxel downsampling
 
+    const float filter_res = 0.08;
+    pcl::PointCloud<pcl::PointXYZ> vox_cloud;
 
-
-    float filter_res = 0.02; // can change this after
-    pcl::PCLPointCloud2Ptr voxelized_ptr(new pcl::PCLPointCloud2);
-
-    pcl::VoxelGrid<pcl::PCLPointCloud2> vg;
+    pcl::VoxelGrid<pcl::PointXYZ> vg;
     vg.setInputCloud(obstacle_cloud);
     vg.setLeafSize(filter_res, filter_res, filter_res);
-    vg.filter(*voxelized_ptr);
+    vg.filter(vox_cloud);
 
-    // end of voxel downsampling, voxelized_ptr is Ptr for next section.
+    pub_voxelized.publish(vox_cloud);
+
+    // std::cout << "Cloud size" << vox_cloud.size()<<std::endl;
+    pcl::PointCloud<pcl::PointXYZ> vox_cloud_filtered;
+    std::vector<int> indices;
+    pcl::removeNaNFromPointCloud(vox_cloud, vox_cloud_filtered, indices);
+    std::cout << "voxelized pc size: " << vox_cloud_filtered.points.size () << std::endl;
+
 
     // 5. clustering
 
-    const float cluster_tolerance = 0.6;
-    const int min_size = 5000;
-    const int max_size = 10;
-    //
-    std::vector<pcl::PCLPointCloud2Ptr> clusters_pc2;
+    const float cluster_tolerance = 4.;
+    const int min_size = 25;
+    const int max_size = 5000;
+
     std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> clusters_xyz;
 
-    // // euclidean clustering to group detected obstacles
-
-    // convert to xyz to feed into kdtree
-
-    pcl::PointCloud<pcl::PointXYZ> *voxelized_xyz = new pcl::PointCloud<pcl::PointXYZ>;
-    pcl::PointCloud<pcl::PointXYZ>::Ptr voxelized_xyz_ptr (voxelized_xyz);
-    pcl::fromPCLPointCloud2(*voxelized_ptr, *voxelized_xyz_ptr);
+    // euclidean clustering to group detected obstacles
 
     pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
-    tree->setInputCloud(voxelized_xyz_ptr);
+
+
+    tree->setInputCloud(vox_cloud_filtered.makeShared());
 
     std::vector<pcl::PointIndices> cluster_indices;
     pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
@@ -189,16 +186,22 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     ec.setMinClusterSize(min_size);
     ec.setMaxClusterSize(max_size);
     ec.setSearchMethod(tree);
-    ec.setInputCloud(voxelized_xyz_ptr);
+    ec.setInputCloud(vox_cloud_filtered.makeShared());
     ec.extract(cluster_indices);
-    //
-    // TODO should this processing below be PointXYZ or PCLPointCloud2 ?
+
+    if(cluster_indices.empty()){
+        std::cout << "CLUSTERING NOT HAPPENING" << std::endl;
+    }
+
+    std::cout << "CLUSTER INDICES SIZE (i.e. number of objects): " << cluster_indices.size() << std::endl;
+
     for (auto& getIndices : cluster_indices)
     {
+
         pcl::PointCloud<pcl::PointXYZ>::Ptr cluster(new pcl::PointCloud<pcl::PointXYZ>);
 
         for (auto& index : getIndices.indices){
-            cluster->points.push_back(voxelized_xyz_ptr->points[index]);
+            cluster->points.push_back(vox_cloud.points[index]);
         }
 
         cluster->width = cluster->points.size();
@@ -207,42 +210,92 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 
         clusters_xyz.push_back(cluster);
     }
+
     // converting clusters to autoware messages
 
     std::size_t obstacle_id_ = (obstacle_id_ < SIZE_MAX)? ++obstacle_id_ : 0;
 
     autoware_msgs::DetectedObjectArray autoware_objects;
-    //
+    autoware_objects.header.stamp = ros::Time::now();
+    autoware_objects.header.frame_id = "ground_aligned";
+
+    jsk_recognition_msgs::BoundingBoxArray jsk_bboxes;
+    jsk_bboxes.header.stamp = ros::Time::now();
+    jsk_bboxes.header.frame_id = "ground_aligned";
+
     for (auto& cluster : clusters_xyz){
         Box temp = bbox_compute(cluster, obstacle_id_);
 
+        // autoware msg
         autoware_msgs::DetectedObject autoware_object; // if this gets manually deleted, will the ref for this bbox in the bbox_array also drop?
-        // autoware_object.header = ; // TODO
+
         autoware_object.id = temp.id;
         autoware_object.label = "unknown";
+        autoware_object.header.stamp = ros::Time::now();
+        autoware_object.header.frame_id = "ground_aligned";
+        autoware_object.pose_reliable = true;
+        autoware_object.valid = true;
         // autoware_object.score = 1.0f; // TODOt
         // autoware_object.pose = pose_transformed; TODO
-        autoware_object.pose_reliable = true;
-        autoware_object.dimensions.x = temp.dimension(0);
-        autoware_object.dimensions.y = temp.dimension(1);
-        autoware_object.dimensions.z = temp.dimension(2);
-        autoware_object.valid = true;
+
+        autoware_object.dimensions.x = temp.dimension.x();
+        autoware_object.dimensions.y = temp.dimension.y();
+        autoware_object.dimensions.z = temp.dimension.z();
+
+        // autoware_object.pose.position = temp.position;
+        autoware_object.pose.position.x = temp.position.x();
+        autoware_object.pose.position.y = temp.position.y();
+        autoware_object.pose.position.z = temp.position.z();
+
+        // autoware_object.pose.orientation = temp.quaternion;
+        autoware_object.pose.orientation.w = temp.quaternion.w();
+        autoware_object.pose.orientation.x = temp.quaternion.x();
+        autoware_object.pose.orientation.y = temp.quaternion.y();
+        autoware_object.pose.orientation.z = temp.quaternion.z();
+
         autoware_objects.objects.emplace_back(autoware_object);
 
+        // jsk msg
+        jsk_recognition_msgs::BoundingBox jsk_bbox;
+        // jsk_bbox.header = header;
+        // jsk_bbox.pose = pose_transformed;
+        jsk_bbox.header.stamp = ros::Time::now();
+        jsk_bbox.header.frame_id = "ground_aligned";
+        jsk_bbox.label = 123; // this is random, look into this
+        // jsk_bbox.value = 1.0f;
+
+        jsk_bbox.dimensions.x = temp.dimension.x();
+        jsk_bbox.dimensions.y = temp.dimension.y();
+        jsk_bbox.dimensions.z = temp.dimension.z();
+
+        // jsk_bbox.pose.position = temp.position;
+        jsk_bbox.pose.position.x = temp.position.x();
+        jsk_bbox.pose.position.y = temp.position.y();
+        jsk_bbox.pose.position.z = temp.position.z();
+
+        // jsk_bbox.pose.orientation = temp.quaternion;
+        jsk_bbox.pose.orientation.w = temp.quaternion.w();
+        jsk_bbox.pose.orientation.x = temp.quaternion.x();
+        jsk_bbox.pose.orientation.y = temp.quaternion.y();
+        jsk_bbox.pose.orientation.z = temp.quaternion.z();
+
+        jsk_bboxes.boxes.emplace_back(jsk_bbox);
     }
 
     pub_autoware_objects.publish(autoware_objects);
-    // // can also simulateneously publish jsk_recognition_msgs
-    // // end of clustering, all object clusters stored in clusters array
+    pub_jsk_bboxes.publish(jsk_bboxes);
+    // end of clustering, all object clusters stored in clusters array
 }
 
 int main (int argc, char** argv)
 {
-  ros::init (argc, argv, "my_pcl_tutorial");
+  ros::init (argc, argv, "lidar_detection");
   ros::NodeHandle nh;
   ros::Subscriber sub = nh.subscribe ("/rslidar_points_front/ground_aligned", 1, cloud_cb);
   // pub = nh.advertise<sensor_msgs::PointCloud2> ("/autoware_bboxes", 1);
   pub_autoware_objects = nh.advertise<autoware_msgs::DetectedObjectArray>("/detection/lidar_objects", 1);
-  pub_above_ground = nh.advertise<sensor_msgs::PointCloud2>("/above_ground", 1);
+  pub_jsk_bboxes = nh.advertise<jsk_recognition_msgs::BoundingBoxArray>("/bboxes_jsk_format", 1);
+  pub_above_ground = nh.advertise<pcl::PointCloud<pcl::PointXYZ>>("/above_ground", 1);
+  pub_voxelized = nh.advertise<pcl::PointCloud<pcl::PointXYZ>>("/after_voxelization", 1);
   ros::spin();
 }
