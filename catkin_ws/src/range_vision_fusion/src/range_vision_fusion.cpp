@@ -487,7 +487,7 @@ ROSRangeVisionFusionApp::SyncedDetectionsCallback(
   // for jsk recognition msgs
   jsk_recognition_msgs::BoundingBoxArray bbox_array;
   
-  bbox_array.header.frame_id = "map";
+  bbox_array.header.frame_id = "ground_aligned";
   ros::Time t = ros::Time::now();
   bbox_array.header.stamp = t;
   printf("cluster size:%d\n", int(fusion_objects.objects.size()));
@@ -495,7 +495,7 @@ ROSRangeVisionFusionApp::SyncedDetectionsCallback(
   {
 
       jsk_recognition_msgs::BoundingBox bbox;
-      bbox.header.frame_id = "map";
+      bbox.header.frame_id = "ground_aligned";
       bbox.header.stamp = t;
       bbox.pose = fusion_objects.objects[i].pose;
       bbox.dimensions = fusion_objects.objects[i].dimensions;
@@ -503,7 +503,7 @@ ROSRangeVisionFusionApp::SyncedDetectionsCallback(
       bbox_array.boxes.push_back(bbox);
   }
 
-  publisher_fused_objects_.publish(bbox_array);
+  publisher_fused_objects_jsk.publish(bbox_array);
 
 }
 
