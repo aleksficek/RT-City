@@ -26,4 +26,10 @@
     <!--Publish Sensor Node LIDAR Frame to Map Frame Static Transform - Feb2022-->
     <node pkg="tf" type="static_transform_publisher" name="map_tf_broadcaster" args="-390.5250848851185 597.3641594483225 12.239965292822628 2.079674982771046 0.9599310888352706 -2.1902655783181404e-16 map rslidar_front 50" />
 
+    <!--Publish Static Transform-->
+    <node pkg="tf" type="static_transform_publisher" name="left_cam_tf_broadcaster" args="-0.01 0.03 -0.045 -0.856956662729 0.0 -1.5777776438 rslidar_front left_cam 50" />
+
+    <!--Publish Static Transform-->
+    <node pkg="tf" type="static_transform_publisher" name="right_cam_tf_broadcaster" args="-0.05 -0.05 -0.045 0.901462558655 0.0 1.5777776438 rslidar_front right_cam 50" />
+
 </launch>

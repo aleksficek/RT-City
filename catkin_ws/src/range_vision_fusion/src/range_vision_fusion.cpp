@@ -486,18 +486,17 @@ ROSRangeVisionFusionApp::SyncedDetectionsCallback(
 
   // for jsk recognition msgs
   jsk_recognition_msgs::BoundingBoxArray bbox_array;
+  
+  bbox_array.header.frame_id = "map";
   ros::Time t = ros::Time::now();
-  bbox_array.header.frame_id = "sdf";
   bbox_array.header.stamp = t;
-  bbox_array.header.seq = 0;
   printf("cluster size:%d\n", int(fusion_objects.objects.size()));
   for(int i=0;i<int(fusion_objects.objects.size());i++)
   {
 
       jsk_recognition_msgs::BoundingBox bbox;
-      bbox.header.frame_id = "sdf";
+      bbox.header.frame_id = "map";
       bbox.header.stamp = t;
-      bbox.header.seq = 0;
       bbox.pose = fusion_objects.objects[i].pose;
       bbox.dimensions = fusion_objects.objects[i].dimensions;
 
@@ -626,7 +625,6 @@ ROSRangeVisionFusionApp::FindTransform(const std::string &in_target_frame, const
   camera_lidar_tf_ok_ = false;
   try
   {
-    // transform_listener_->lookupTransform(in_target_frame, in_source_frame, ros::Time(0), transform);
     transform_listener_->lookupTransform(in_target_frame, in_source_frame, ros::Time(0), transform);
     camera_lidar_tf_ok_ = true;
     ROS_INFO("[%s] Camera-Lidar TF obtained", __APP_NAME__);
