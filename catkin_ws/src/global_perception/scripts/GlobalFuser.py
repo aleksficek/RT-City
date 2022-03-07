@@ -25,7 +25,7 @@ class GlobalFuser():
         rospy.init_node('global_perception', anonymous=False)
         self.rate = rospy.Rate(NODE_RATE)
 
-        sub_n1 = mf.Subscriber('node1/bounding_boxes', BoundingBoxArray)
+        sub_n1 = mf.Subscriber('/detection/fusion_tools/objects_jsk', BoundingBoxArray)
         sub_n2 = mf.Subscriber('node2/bounding_boxes', BoundingBoxArray)
 
         sub_n1.registerCallback(self.node1Callback)
@@ -184,7 +184,7 @@ class GlobalFuser():
             
         # at this point everything left in tracker should have its latest bbox published
         fused_buffer = BoundingBoxArray()
-        fused_buffer.header.frame_id = 'map'
+        fused_buffer.header.frame_id = 'ground_aligned'
         for id in self.tracked_bboxes.keys():
             fused_buffer.boxes.append(self.tracked_bboxes[id]['latest_bbox'])
         
