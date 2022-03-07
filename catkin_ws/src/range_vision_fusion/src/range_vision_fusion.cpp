@@ -497,6 +497,7 @@ ROSRangeVisionFusionApp::SyncedDetectionsCallback(
       jsk_recognition_msgs::BoundingBox bbox;
       bbox.header.frame_id = "ground_aligned";
       bbox.header.stamp = t;
+      bbox.value = (float)fusion_objects.objects[i].id;
       bbox.pose = fusion_objects.objects[i].pose;
       bbox.dimensions = fusion_objects.objects[i].dimensions;
 
@@ -642,7 +643,7 @@ ROSRangeVisionFusionApp::InitializeROSIo(ros::NodeHandle &in_private_handle)
 {
   //get params
   std::string camera_info_src, detected_objects_vision, min_car_dimensions, min_person_dimensions, min_truck_dimensions;
-  std::string detected_objects_range, fused_topic_str = "/detection/fusion_tools/objects";
+  std::string detected_objects_range, fused_topic_str, fused_jsk_topic_str = "/detection/fusion_tools/objects";
   std::string name_space_str = ros::this_node::getNamespace();
   bool sync_topics = false;
 
@@ -651,6 +652,13 @@ ROSRangeVisionFusionApp::InitializeROSIo(ros::NodeHandle &in_private_handle)
     __APP_NAME__);
   in_private_handle.param<std::string>("detected_objects_range", detected_objects_range,
                                        "/detection/lidar_objects");
+
+  in_private_handle.param<std::string>("output_topic", fused_topic_str,
+                                       "/detection/fusion_tools/objects");
+
+   in_private_handle.param<std::string>("output_jsk_topic", fused_jsk_topic_str,
+                                       "/detection/fusion_tools/objects_jsk");
+
   ROS_INFO("[%s] detected_objects_range: %s", __APP_NAME__, detected_objects_range.c_str());
 
   in_private_handle.param<std::string>("detected_objects_vision", detected_objects_vision,
@@ -752,7 +760,7 @@ ROSRangeVisionFusionApp::InitializeROSIo(ros::NodeHandle &in_private_handle)
 
   ROS_INFO("[%s] Publishing fused objects in %s", __APP_NAME__, fused_topic_str.c_str());
 
-  publisher_fused_objects_jsk = node_handle_.advertise<jsk_recognition_msgs::BoundingBoxArray>("/detection/fusion_tools/objects_jsk", 1);
+  publisher_fused_objects_jsk = node_handle_.advertise<jsk_recognition_msgs::BoundingBoxArray>(fused_jsk_topic_str, 1);
 }
 
 
