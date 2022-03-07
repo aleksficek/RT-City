@@ -92,7 +92,17 @@ Box bbox_compute(pcl::PointCloud<pcl::PointXYZ>::Ptr& c, const int id){
     const Eigen::Vector3f position = eigen_vectors * meanDiagonal + pca_centroid.head<3>();
     const Eigen::Vector3f dimension((max_pt.x - min_pt.x), (max_pt.y - min_pt.y), box_height);
 
-    return Box(id, position, dimension, quaternion);
+    const float volume_threshold = 50;
+    float box_volume = dimension.x() * dimension.y() * dimension.z();
+    Eigen::Quaternionf zero_quat{0.0, 0.0, 0.0, 0.0};
+
+    if(box_volume <= volume_threshold){
+        return Box(id, position, dimension, quaternion);
+    } else{
+        return Box(id, Eigen::Vector3f::Zero(), Eigen::Vector3f::Zero(), zero_quat);
+    }
+
+    // return Box(id, position, dimension, quaternion);
 }
 
 void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
@@ -167,7 +177,7 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 
     // 5. clustering
 
-    const float cluster_tolerance = 4.;
+    const float cluster_tolerance = 0.5;
     const int min_size = 25;
     const int max_size = 5000;
 
@@ -267,7 +277,7 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
         jsk_bbox.dimensions.x = temp.dimension.x();
         jsk_bbox.dimensions.y = temp.dimension.y();
         jsk_bbox.dimensions.z = temp.dimension.z();
-
+        std::cout << "Box volume: " << temp.dimension.x() * temp.dimension.y() * temp.dimension.z() << std::endl;
         // jsk_bbox.pose.position = temp.position;
         jsk_bbox.pose.position.x = temp.position.x();
         jsk_bbox.pose.position.y = temp.position.y();
