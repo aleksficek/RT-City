@@ -6,8 +6,8 @@ import numpy as np
 from BBoxPredictor import BBoxPredictor
 from jsk_recognition_msgs.msg import BoundingBoxArray, BoundingBox
 
-NODE_RATE = 20 # Hz
-TIME_THRESHOLD = 150 #7.5s
+NODE_RATE = 10 # Hz
+TIME_THRESHOLD = 10 #
 TOL = 0.5 #m
 
 '''
@@ -25,8 +25,8 @@ class GlobalFuser():
         rospy.init_node('global_perception', anonymous=False)
         self.rate = rospy.Rate(NODE_RATE)
 
-        sub_n1 = mf.Subscriber('/detection/fusion_tools/objects_jsk', BoundingBoxArray)
-        sub_n2 = mf.Subscriber('node2/bounding_boxes', BoundingBoxArray)
+        sub_n1 = mf.Subscriber('/detection/fusion_tools/objects_jsk_left', BoundingBoxArray)
+        sub_n2 = mf.Subscriber('/detection/fusion_tools/objects_jsk_right', BoundingBoxArray)
 
         sub_n1.registerCallback(self.node1Callback)
         sub_n2.registerCallback(self.node2Callback)
@@ -67,21 +67,16 @@ class GlobalFuser():
                 buffer_index = 1
             for bbox in self.master_buffer[node][buffer_index].boxes:
 
-                # TEST CODE
-                # if bbox.value == 3.0 and node == 'node2':
-                #     bbox.value = 5.0
-
-
                 if str(bbox.value) in self.tracked_bboxes.keys():
                     id_key = str(bbox.value)
-                    if abs(self.tracked_bboxes[id_key]['latest_bbox'].dimensions.x - bbox.dimensions.x)>TOL:
-                        self.tracked_bboxes[id_key]['timesteps_missed'] = 0
-                        self.tracked_bboxes[id_key]['latest_bbox'].pose = bbox.pose
-                        self.tracked_bboxes[id_key]['latest_bbox'].header = bbox.header
-                        self.tracked_bboxes[id_key]['latest_bbox'].value = float(id_key)
-                    else:
-                        self.tracked_bboxes[id_key]['timesteps_missed'] = 0
-                        self.tracked_bboxes[id_key]['latest_bbox'] = bbox
+                    # if abs(self.tracked_bboxes[id_key]['latest_bbox'].dimensions.x - bbox.dimensions.x)>TOL:
+                    #     self.tracked_bboxes[id_key]['timesteps_missed'] = 0
+                    #     self.tracked_bboxes[id_key]['latest_bbox'].pose = bbox.pose
+                    #     self.tracked_bboxes[id_key]['latest_bbox'].header = bbox.header
+                    #     self.tracked_bboxes[id_key]['latest_bbox'].value = float(id_key)
+                    # else:
+                    self.tracked_bboxes[id_key]['timesteps_missed'] = 0
+                    self.tracked_bboxes[id_key]['latest_bbox'] = bbox
                     bbox_pos = [bbox.pose.position.x,
                                 bbox.pose.position.y,
                                 bbox.pose.position.z]
@@ -93,23 +88,23 @@ class GlobalFuser():
                 found_match = False
                 min_gate_value = 10000000000000000
                 for id in self.tracked_bboxes.keys():
-                    if str(bbox.value) in self.tracked_bboxes[id]['equal_ids']:
-                        print("equal id")
-                        if abs(self.tracked_bboxes[id]['latest_bbox'].dimensions.x - bbox.dimensions.x)>TOL:
-                            self.tracked_bboxes[id]['timesteps_missed'] = 0
-                            self.tracked_bboxes[id]['latest_bbox'].pose = bbox.pose
-                            self.tracked_bboxes[id]['latest_bbox'].header = bbox.header
-                            self.tracked_bboxes[id]['latest_bbox'].value = float(id)
-                        else:
-                            self.tracked_bboxes[id]['timesteps_missed'] = 0
-                            self.tracked_bboxes[id]['latest_bbox'] = bbox
-                        bbox_pos = [bbox.pose.position.x,
-                                    bbox.pose.position.y,
-                                    bbox.pose.position.z]
-                        self.tracked_bboxes[id]['kf'].update(bbox_pos)
-                        ids_updated.append(id)
-                        found_match = True
-                        break
+                    # if str(bbox.value) in self.tracked_bboxes[id]['equal_ids']:
+                    #     print("equal id")
+                    #     # if abs(self.tracked_bboxes[id]['latest_bbox'].dimensions.x - bbox.dimensions.x)>TOL:
+                    #     #     self.tracked_bboxes[id]['timesteps_missed'] = 0
+                    #     #     self.tracked_bboxes[id]['latest_bbox'].pose = bbox.pose
+                    #     #     self.tracked_bboxes[id]['latest_bbox'].header = bbox.header
+                    #     #     self.tracked_bboxes[id]['latest_bbox'].value = float(id)
+                    #     # else:
+                    #     self.tracked_bboxes[id]['timesteps_missed'] = 0
+                    #     self.tracked_bboxes[id]['latest_bbox'] = bbox
+                    #     bbox_pos = [bbox.pose.position.x,
+                    #                 bbox.pose.position.y,
+                    #                 bbox.pose.position.z]
+                    #     self.tracked_bboxes[id]['kf'].update(bbox_pos)
+                    #     ids_updated.append(id)
+                    #     found_match = True
+                    #     break
 
                     # gating try
                     predicted_pos = self.tracked_bboxes[id]['kf'].get_posn()
@@ -134,20 +129,19 @@ class GlobalFuser():
                         # we have seen this ID, update it with latest bbox and kf
                         self.tracked_bboxes[id]['timesteps_missed'] = 0
                         self.tracked_bboxes[id]['equal_ids'].append(str(bbox.value))
-                        if abs(self.tracked_bboxes[id]['latest_bbox'].dimensions.x - bbox.dimensions.x)>TOL:
-                            self.tracked_bboxes[id]['timesteps_missed'] = 0
-                            self.tracked_bboxes[id]['latest_bbox'].pose = bbox.pose
-                            self.tracked_bboxes[id]['latest_bbox'].header = bbox.header
-                        else:
-                            self.tracked_bboxes[id]['latest_bbox'] = bbox
-                        self.tracked_bboxes[id]['latest_bbox'].value = float(id)
+                        # if abs(self.tracked_bboxes[id]['latest_bbox'].dimensions.x - bbox.dimensions.x)>TOL:
+                        #     self.tracked_bboxes[id]['timesteps_missed'] = 0
+                        #     self.tracked_bboxes[id]['latest_bbox'].pose = bbox.pose
+                        #     self.tracked_bboxes[id]['latest_bbox'].header = bbox.header
+                        # else:
+                        bbox.value = float(id)
+                        self.tracked_bboxes[id]['latest_bbox'] = bbox
                         bbox_pos = [bbox.pose.position.x,
                                     bbox.pose.position.y,
                                     bbox.pose.position.z]
                         self.tracked_bboxes[id]['kf'].update(bbox_pos)
                         ids_updated.append(id)
                         found_match = True
-                    
                 
                 if not found_match and min_gate_value > BBoxPredictor.new_track_threshold:
                     # its a new id to add to the tracker

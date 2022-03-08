@@ -493,7 +493,9 @@ ROSRangeVisionFusionApp::SyncedDetectionsCallback(
   printf("cluster size:%d\n", int(fusion_objects.objects.size()));
   for(int i=0;i<int(fusion_objects.objects.size());i++)
   {
-
+      if (fusion_objects.objects[i].dimensions.x == 0.0 || fusion_objects.objects[i].dimensions.y == 0.0 || fusion_objects.objects[i].dimensions.z == 0){
+        continue;
+      }
       jsk_recognition_msgs::BoundingBox bbox;
       bbox.header.frame_id = "ground_aligned";
       bbox.header.stamp = t;

@@ -9,9 +9,9 @@ class BBoxPredictor():
 	measurement_dim = 3
 	state_variables = 6
 	delta_t = 0.05 #s
-	gate_value = 0.584 #3 DOF 90%
-	# gate_value = 2.204 #6 DOF 90%
-	new_track_threshold = 500 
+	gate_value = 0.352 #3 DOF 90%
+	# gate_value = 10. #6 DOF 90%
+	new_track_threshold = 6.0
 
 	'''
 	State Variables: 

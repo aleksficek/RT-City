@@ -12,11 +12,13 @@ Welcome to the RT-City Project. This repo encapsulates all things for the projec
 1. Roscore
 2. rosbag play BAG --clock -l
 3. python rotate_and_pub_right_image_compressed.py
-4. rosrun transform_publisher_infra transform_points_infra
-5. LD_LIBRARY_PATH=./:$LD_LIBRARY_PATH ./uselib_left data/coco.names cfg/yolov4.cfg yolov4.weights basler_camera --i 0
-6. LD_LIBRARY_PATH=./:$LD_LIBRARY_PATH ./uselib_right data/coco.names cfg/yolov4.cfg yolov4.weights basler_camera --i 0
-7. rosrun det_3d detection_node
-8. rosrun range_vision_fusion range_vision_fusion
-9. rosrun global_perception GlobalFuser.py
-10. rviz (optional) 
-11. rqt (optional)
+4. roslaunch transform_publisher_infra transform_pub.launch
+5. rosrun transform_publisher_infra transform_points_infra
+6. LD_LIBRARY_PATH=./:$LD_LIBRARY_PATH ./uselib_left data/coco.names cfg/yolov4.cfg yolov4.weights basler_camera --i 0
+7. LD_LIBRARY_PATH=./:$LD_LIBRARY_PATH ./uselib_right data/coco.names cfg/yolov4.cfg yolov4.weights basler_camera --i 0
+python2 ground_filter.py 
+8. rosrun det_3d detection_node
+9. roslaunch range_vision_fusion range_vision_fusion.launch
+10. rosrun global_perception GlobalFuser.py
+11. rviz (optional) 
+12. rqt (optional)
