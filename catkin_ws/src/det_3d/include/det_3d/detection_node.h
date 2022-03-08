@@ -9,6 +9,8 @@ struct Box
 	Eigen::Vector3f position;
 	Eigen::Vector3f dimension;
 	Eigen::Quaternionf quaternion;
+	// float volume;
+	// float volume;
 
 	Box() {};
 

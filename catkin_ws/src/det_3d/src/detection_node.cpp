@@ -93,13 +93,16 @@ Box bbox_compute(pcl::PointCloud<pcl::PointXYZ>::Ptr& c, const int id){
     const Eigen::Vector3f dimension((max_pt.x - min_pt.x), (max_pt.y - min_pt.y), box_height);
 
     const float volume_threshold = 50;
+    // float box_volume = dimension.x() * dimension.y() * dimension.z();
     float box_volume = dimension.x() * dimension.y() * dimension.z();
     Eigen::Quaternionf zero_quat{0.0, 0.0, 0.0, 0.0};
 
-    if(box_volume <= volume_threshold){
+    Eigen::Vector3f bad_pos{99., 99., 99.};
+    if(box_volume <= volume_threshold && dimension.y() < 7.5 && dimension.x() < 7.5){
         return Box(id, position, dimension, quaternion);
     } else{
-        return Box(id, Eigen::Vector3f::Zero(), Eigen::Vector3f::Zero(), zero_quat);
+        std::cout << "Publishing zero size box" <<std::endl;
+        return Box(id, bad_pos, bad_pos, zero_quat);
     }
 
     // return Box(id, position, dimension, quaternion);
@@ -109,75 +112,75 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 {
     // std::cout << "Cloud size original" << cloud_msg->height<<std::endl;
     // std::cout << "Cloud size original" << cloud_msg->width<<std::endl;
-    size_t original_num_pts = 0, ground_filtered_num_pts = 0, voxelized_num_pts = 0;
-    const int ransac_iter = 150;
-    const float threshold = 0.03;
+    // size_t original_num_pts = 0, ground_filtered_num_pts = 0, voxelized_num_pts = 0;
+    // const int ransac_iter = 150;
+    // const float threshold = 0.03;
 
-    std::cout << "input pc size: " << cloud_msg->height * cloud_msg->width << std::endl;
+    // std::cout << "input pc size: " << cloud_msg->height * cloud_msg->width << std::endl;
     // 1. type conversion
     pcl::PointCloud<pcl::PointXYZ> cloud;
     pcl::fromROSMsg (*cloud_msg, cloud);
 
     // 3. ground plane filtering
 
-    pcl::SACSegmentation<pcl::PointXYZ> seg;
-    pcl::PointIndices::Ptr inliers{new pcl::PointIndices};
-    pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+    // pcl::SACSegmentation<pcl::PointXYZ> seg;
+    // pcl::PointIndices::Ptr inliers{new pcl::PointIndices};
+    // pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
 
-    seg.setOptimizeCoefficients(true);
-    seg.setModelType(pcl::SACMODEL_PARALLEL_PLANE);
-    seg.setMethodType(pcl::SAC_RANSAC);
-    seg.setMaxIterations(ransac_iter); // setting max iterations of RANSAC to 30
-    seg.setAxis(Eigen::Vector3f (0.0, 0.0, 1.0));
-    seg.setDistanceThreshold(0.2); // setting ground threshold
+    // seg.setOptimizeCoefficients(true);
+    // seg.setModelType(pcl::SACMODEL_PARALLEL_PLANE);
+    // seg.setMethodType(pcl::SAC_RANSAC);
+    // seg.setMaxIterations(ransac_iter); // setting max iterations of RANSAC to 30
+    // seg.setAxis(Eigen::Vector3f (0.0, 0.0, 1.0));
+    // seg.setDistanceThreshold(0.2); // setting ground threshold
 
-    // Segment the largest planar component from the input cloud
-    seg.setInputCloud(cloud.makeShared());
-    // std::cout << "Cloud size" << cloud.size()<<std::endl;
-    seg.segment(*inliers, *coefficients);
-    if (inliers->indices.empty())
-    {
-      std::cout << "Could not estimate a planar model for the given dataset." << std::endl;
-    }
+    // // Segment the largest planar component from the input cloud
+    // seg.setInputCloud(cloud.makeShared());
+    // // std::cout << "Cloud size" << cloud.size()<<std::endl;
+    // seg.segment(*inliers, *coefficients);
+    // if (inliers->indices.empty())
+    // {
+    //   std::cout << "Could not estimate a planar model for the given dataset." << std::endl;
+    // }
 
-    pcl::PointCloud<pcl::PointXYZ>::Ptr obstacle_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::PointCloud<pcl::PointXYZ>::Ptr ground_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    // pcl::PointCloud<pcl::PointXYZ>::Ptr obstacle_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    // pcl::PointCloud<pcl::PointXYZ>::Ptr ground_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
-    for (int idx : inliers->indices){
-        ground_cloud->points.push_back(cloud.points[idx]);
-    }
+    // for (int idx : inliers->indices){
+    //     ground_cloud->points.push_back(cloud.points[idx]);
+    // }
 
-    pcl::ExtractIndices<pcl::PointXYZ> extract;
-    extract.setInputCloud(cloud.makeShared());
-    extract.setIndices(inliers);
-    extract.setNegative(true);
-    extract.filter(*obstacle_cloud);
-    pub_above_ground.publish(obstacle_cloud);
-    ground_filtered_num_pts = obstacle_cloud->size();
-    std::cout << "ground filtered pc size: " << ground_filtered_num_pts << std::endl;
+    // pcl::ExtractIndices<pcl::PointXYZ> extract;
+    // extract.setInputCloud(cloud.makeShared());
+    // extract.setIndices(inliers);
+    // extract.setNegative(true);
+    // extract.filter(*obstacle_cloud);
+    // pub_above_ground.publish(obstacle_cloud);
+    // ground_filtered_num_pts = obstacle_cloud->size();
+    // std::cout << "ground filtered pc size: " << ground_filtered_num_pts << std::endl;
 
-    // 4. voxel downsampling
+    // // 4. voxel downsampling
 
-    const float filter_res = 0.08;
-    pcl::PointCloud<pcl::PointXYZ> vox_cloud;
+    // const float filter_res = 0.08;
+    // pcl::PointCloud<pcl::PointXYZ> vox_cloud;
 
-    pcl::VoxelGrid<pcl::PointXYZ> vg;
-    vg.setInputCloud(obstacle_cloud);
-    vg.setLeafSize(filter_res, filter_res, filter_res);
-    vg.filter(vox_cloud);
+    // pcl::VoxelGrid<pcl::PointXYZ> vg;
+    // vg.setInputCloud(obstacle_cloud);
+    // vg.setLeafSize(filter_res, filter_res, filter_res);
+    // vg.filter(vox_cloud);
 
-    pub_voxelized.publish(vox_cloud);
+    // pub_voxelized.publish(vox_cloud);
 
-    // std::cout << "Cloud size" << vox_cloud.size()<<std::endl;
-    pcl::PointCloud<pcl::PointXYZ> vox_cloud_filtered;
-    std::vector<int> indices;
-    pcl::removeNaNFromPointCloud(vox_cloud, vox_cloud_filtered, indices);
-    std::cout << "voxelized pc size: " << vox_cloud_filtered.points.size () << std::endl;
+    // // std::cout << "Cloud size" << vox_cloud.size()<<std::endl;
+    // pcl::PointCloud<pcl::PointXYZ> vox_cloud_filtered;
+    // std::vector<int> indices;
+    // pcl::removeNaNFromPointCloud(vox_cloud, vox_cloud_filtered, indices);
+    // std::cout << "voxelized pc size: " << vox_cloud_filtered.points.size () << std::endl;
 
 
-    // 5. clustering
+    // // 5. clustering
 
-    const float cluster_tolerance = 0.5;
+    const float cluster_tolerance = 1.;
     const int min_size = 25;
     const int max_size = 5000;
 
@@ -188,7 +191,7 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
 
 
-    tree->setInputCloud(vox_cloud_filtered.makeShared());
+    tree->setInputCloud(cloud.makeShared());
 
     std::vector<pcl::PointIndices> cluster_indices;
     pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
@@ -196,7 +199,7 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     ec.setMinClusterSize(min_size);
     ec.setMaxClusterSize(max_size);
     ec.setSearchMethod(tree);
-    ec.setInputCloud(vox_cloud_filtered.makeShared());
+    ec.setInputCloud(cloud.makeShared());
     ec.extract(cluster_indices);
 
     if(cluster_indices.empty()){
@@ -211,7 +214,7 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
         pcl::PointCloud<pcl::PointXYZ>::Ptr cluster(new pcl::PointCloud<pcl::PointXYZ>);
 
         for (auto& index : getIndices.indices){
-            cluster->points.push_back(vox_cloud.points[index]);
+            cluster->points.push_back(cloud.points[index]);
         }
 
         cluster->width = cluster->points.size();
@@ -233,63 +236,73 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     jsk_bboxes.header.stamp = ros::Time::now();
     jsk_bboxes.header.frame_id = "ground_aligned";
 
+    int temp_id = 0;
     for (auto& cluster : clusters_xyz){
-        Box temp = bbox_compute(cluster, obstacle_id_);
+        Box temp = bbox_compute(cluster, temp_id);
+        if (temp_id == 10000) {
+            temp_id = 0;
+        }
+        temp_id++;
 
+        if((temp.dimension.x() * temp.dimension.y() * temp.dimension.z()) < 1000.0){
         // autoware msg
-        autoware_msgs::DetectedObject autoware_object; // if this gets manually deleted, will the ref for this bbox in the bbox_array also drop?
+            autoware_msgs::DetectedObject autoware_object; // if this gets manually deleted, will the ref for this bbox in the bbox_array also drop?
 
-        autoware_object.id = temp.id;
-        autoware_object.label = "unknown";
-        autoware_object.header.stamp = ros::Time::now();
-        autoware_object.header.frame_id = "ground_aligned";
-        autoware_object.pose_reliable = true;
-        autoware_object.valid = true;
-        // autoware_object.score = 1.0f; // TODOt
-        // autoware_object.pose = pose_transformed; TODO
+            autoware_object.id = temp.id;
+            autoware_object.label = "unknown";
+            autoware_object.header.stamp = ros::Time::now();
+            autoware_object.header.frame_id = "ground_aligned";
+            autoware_object.pose_reliable = true;
+            autoware_object.valid = true;
+            // autoware_object.score = 1.0f; // TODOt
+            // autoware_object.pose = pose_transformed; TODO
 
-        autoware_object.dimensions.x = temp.dimension.x();
-        autoware_object.dimensions.y = temp.dimension.y();
-        autoware_object.dimensions.z = temp.dimension.z();
+            autoware_object.dimensions.x = temp.dimension.x();
+            autoware_object.dimensions.y = temp.dimension.y();
+            autoware_object.dimensions.z = temp.dimension.z();
 
-        // autoware_object.pose.position = temp.position;
-        autoware_object.pose.position.x = temp.position.x();
-        autoware_object.pose.position.y = temp.position.y();
-        autoware_object.pose.position.z = temp.position.z();
+            // autoware_object.pose.position = temp.position;
+            autoware_object.pose.position.x = temp.position.x();
+            autoware_object.pose.position.y = temp.position.y();
+            autoware_object.pose.position.z = temp.position.z();
 
-        // autoware_object.pose.orientation = temp.quaternion;
-        autoware_object.pose.orientation.w = temp.quaternion.w();
-        autoware_object.pose.orientation.x = temp.quaternion.x();
-        autoware_object.pose.orientation.y = temp.quaternion.y();
-        autoware_object.pose.orientation.z = temp.quaternion.z();
+            // autoware_object.pose.orientation = temp.quaternion;
+            autoware_object.pose.orientation.w = temp.quaternion.w();
+            autoware_object.pose.orientation.x = temp.quaternion.x();
+            autoware_object.pose.orientation.y = temp.quaternion.y();
+            autoware_object.pose.orientation.z = temp.quaternion.z();
 
-        autoware_objects.objects.emplace_back(autoware_object);
+            autoware_objects.objects.emplace_back(autoware_object);
 
-        // jsk msg
-        jsk_recognition_msgs::BoundingBox jsk_bbox;
-        // jsk_bbox.header = header;
-        // jsk_bbox.pose = pose_transformed;
-        jsk_bbox.header.stamp = ros::Time::now();
-        jsk_bbox.header.frame_id = "ground_aligned";
-        jsk_bbox.label = 123; // this is random, look into this
-        // jsk_bbox.value = 1.0f;
+            // jsk msg
+            jsk_recognition_msgs::BoundingBox jsk_bbox;
+            // jsk_bbox.header = header;
+            // jsk_bbox.pose = pose_transformed;
+            jsk_bbox.header.stamp = ros::Time::now();
+            jsk_bbox.header.frame_id = "ground_aligned";
+            jsk_bbox.label = temp.id; // this is random, look into this
+            // jsk_bbox.value = 1.0f;
 
-        jsk_bbox.dimensions.x = temp.dimension.x();
-        jsk_bbox.dimensions.y = temp.dimension.y();
-        jsk_bbox.dimensions.z = temp.dimension.z();
-        std::cout << "Box volume: " << temp.dimension.x() * temp.dimension.y() * temp.dimension.z() << std::endl;
-        // jsk_bbox.pose.position = temp.position;
-        jsk_bbox.pose.position.x = temp.position.x();
-        jsk_bbox.pose.position.y = temp.position.y();
-        jsk_bbox.pose.position.z = temp.position.z();
+            jsk_bbox.dimensions.x = temp.dimension.x();
+            jsk_bbox.dimensions.y = temp.dimension.y();
+            jsk_bbox.dimensions.z = temp.dimension.z();
+            std::cout << "Box volume: " << temp.dimension.x() * temp.dimension.y() * temp.dimension.z() << std::endl;
+            // std::cout << "Box x dim: " << temp.dimension.x() << std::endl;
+            std::cout << "Box y dim: " << temp.dimension.y() << std::endl;
 
-        // jsk_bbox.pose.orientation = temp.quaternion;
-        jsk_bbox.pose.orientation.w = temp.quaternion.w();
-        jsk_bbox.pose.orientation.x = temp.quaternion.x();
-        jsk_bbox.pose.orientation.y = temp.quaternion.y();
-        jsk_bbox.pose.orientation.z = temp.quaternion.z();
+            // jsk_bbox.pose.position = temp.position;
+            jsk_bbox.pose.position.x = temp.position.x();
+            jsk_bbox.pose.position.y = temp.position.y();
+            jsk_bbox.pose.position.z = temp.position.z();
 
-        jsk_bboxes.boxes.emplace_back(jsk_bbox);
+            // jsk_bbox.pose.orientation = temp.quaternion;
+            jsk_bbox.pose.orientation.w = temp.quaternion.w();
+            jsk_bbox.pose.orientation.x = temp.quaternion.x();
+            jsk_bbox.pose.orientation.y = temp.quaternion.y();
+            jsk_bbox.pose.orientation.z = temp.quaternion.z();
+
+            jsk_bboxes.boxes.emplace_back(jsk_bbox);
+        }
     }
 
     pub_autoware_objects.publish(autoware_objects);
@@ -301,7 +314,7 @@ int main (int argc, char** argv)
 {
   ros::init (argc, argv, "lidar_detection");
   ros::NodeHandle nh;
-  ros::Subscriber sub = nh.subscribe ("/rslidar_points_front/ground_aligned", 1, cloud_cb);
+  ros::Subscriber sub = nh.subscribe ("/rslidar_points_front/ground_filtered", 1, cloud_cb);
   // pub = nh.advertise<sensor_msgs::PointCloud2> ("/autoware_bboxes", 1);
   pub_autoware_objects = nh.advertise<autoware_msgs::DetectedObjectArray>("/detection/lidar_objects", 1);
   pub_jsk_bboxes = nh.advertise<jsk_recognition_msgs::BoundingBoxArray>("/bboxes_jsk_format", 1);
