@@ -53,11 +53,13 @@ class GlobalFuser():
         
         # Run the fuser at 20Hz
         while not rospy.is_shutdown():
-            self.fuserRun50ms()
-            self.rate.sleep()
+            try:
+                self.fuserRun50ms()
+                self.rate.sleep()
+            except rospy.ROSInterruptException or ROSTimeMovedBackwardsException:
+                pass
 
     def fuserRun50ms(self, event=None):
-
         ids_updated = []
         print(self.tracked_bboxes.keys())
         # update tracker with ids recieved
@@ -206,7 +208,4 @@ class GlobalFuser():
         
 
 if __name__ == '__main__':
-    try:
-        GlobalFuser()
-    except rospy.ROSInterruptException:
-        pass
+    GlobalFuser()

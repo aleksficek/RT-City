@@ -8,9 +8,9 @@ Welcome to the RT-City Project. This repo encapsulates all things for the projec
 
 2. Join remote computer using AnyDesk, ID and password are in RT-City-FYDP teams chat.
 
-## Launching The Stack (In separate rerminals)
+## Launching The Stack (In separate terminals)
 1. Roscore
-2. rosbag play BAG --clock -l
+2. rosparam set use_sim_time true && rosbag play BAG --clock -l
 3. python rotate_and_pub_right_image_compressed.py
 4. roslaunch transform_publisher_infra transform_pub.launch
 5. rosrun transform_publisher_infra transform_points_infra
